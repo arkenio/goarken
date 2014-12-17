@@ -41,9 +41,9 @@ func Test_cluster(t *testing.T) {
 
 			Convey("Then returned service should always be the same", func() {
 				service, _ := cluster.Next()
-				firstKey := service.index
+				firstKey := service.Index
 				service, _ = cluster.Next()
-				So(service.index, ShouldEqual, firstKey)
+				So(service.Index, ShouldEqual, firstKey)
 
 			})
 
@@ -59,12 +59,12 @@ func Test_cluster(t *testing.T) {
 				So(service, ShouldNotBeNil)
 				So(err, ShouldBeNil)
 
-				firstKey := service.index
+				firstKey := service.Index
 
 				service, err = cluster.Next()
 				So(service, ShouldNotBeNil)
 				So(err, ShouldBeNil)
-				So(service.index, ShouldNotEqual, firstKey)
+				So(service.Index, ShouldNotEqual, firstKey)
 			})
 
 			Convey("Then it should never loadbalance on an inactive service", func() {
@@ -72,19 +72,19 @@ func Test_cluster(t *testing.T) {
 					service, err := cluster.Next()
 					So(service, ShouldNotBeNil)
 					So(err, ShouldBeNil)
-					So(service.index, ShouldNotEqual, "2")
+					So(service.Index, ShouldNotEqual, "2")
 				}
 			})
 
 			Convey("Then it can get each service by its key", func() {
 
 				service := cluster.Get("1")
-				So(service.index, ShouldEqual, "1")
-				So(service.status.current, ShouldEqual, "started")
+				So(service.Index, ShouldEqual, "1")
+				So(service.Status.Current, ShouldEqual, "started")
 
 				service = cluster.Get("2")
-				So(service.index, ShouldEqual, "2")
-				So(service.status.current, ShouldEqual, "stopped")
+				So(service.Index, ShouldEqual, "2")
+				So(service.Status.Current, ShouldEqual, "stopped")
 			})
 
 		})
@@ -117,56 +117,56 @@ func Test_Service(t *testing.T) {
 		Convey("When i dont change anything", func() {
 			Convey("Then they are equal", func() {
 
-				So(service1.equals(service2), ShouldEqual, true)
+				So(service1.Equals(service2), ShouldEqual, true)
 
 			})
 
 		})
 
 		Convey("When host is not the same", func() {
-			service2.location.Host = "otherhost"
+			service2.Location.Host = "otherhost"
 			Convey("Then they are not equal", func() {
 
-				So(service1.equals(service2), ShouldEqual, false)
+				So(service1.Equals(service2), ShouldEqual, false)
 
 			})
 
 		})
 
 		Convey("When port is not the same", func() {
-			service2.location.Port = 9090
+			service2.Location.Port = 9090
 			Convey("Then they are not equal", func() {
 
-				So(service1.equals(service2), ShouldEqual, false)
+				So(service1.Equals(service2), ShouldEqual, false)
 
 			})
 
 		})
 
 		Convey("When current status is not the same", func() {
-			service2.status.current = "other"
+			service2.Status.Current = "other"
 			Convey("Then they are not equal", func() {
 
-				So(service1.equals(service2), ShouldEqual, false)
+				So(service1.Equals(service2), ShouldEqual, false)
 
 			})
 
 		})
 
 		Convey("When expected status is not the same", func() {
-			service2.status.expected = "other"
+			service2.Status.Expected = "other"
 			Convey("Then they are not equal", func() {
 
-				So(service1.equals(service2), ShouldEqual, false)
+				So(service1.Equals(service2), ShouldEqual, false)
 
 			})
 
 		})
 		Convey("When alive status is not the same", func() {
-			service2.status.alive = "other"
+			service2.Status.Alive = "other"
 			Convey("Then they are not equal", func() {
 
-				So(service1.equals(service2), ShouldEqual, false)
+				So(service1.Equals(service2), ShouldEqual, false)
 
 			})
 
@@ -184,10 +184,11 @@ func getService(index string, name string, active bool) *Service {
 	}
 
 	return &Service{
-		index:    index,
-		location: &location{"127.0.0.1", 8080},
-		domain:   "dummydomain.com",
-		name:     name,
-		status:   s}
+		Index:    index,
+		Location: &Location{"127.0.0.1", 8080},
+		Domain:   "dummydomain.com",
+		Name:     name,
+		Status:   s,
+	}
 
 }

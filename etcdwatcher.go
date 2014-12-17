@@ -16,10 +16,12 @@ type Watcher struct {
 	ServicePrefix string
 	Domains       map[string]*Domain
 	Services      map[string]*ServiceCluster
+	broadcaster   *Broadcaster
 }
 
 //Init Domains and Services.
 func (w *Watcher) Init() {
+	w.broadcaster = NewBroadcaster()
 	if w.Domains != nil {
 		go w.loadAndWatch(w.DomainPrefix, w.registerDomain)
 	}
@@ -27,6 +29,10 @@ func (w *Watcher) Init() {
 		go w.loadAndWatch(w.ServicePrefix, w.registerService)
 	}
 
+}
+
+func (w *Watcher) Listen() chan interface{} {
+	return w.broadcaster.Listen()
 }
 
 // Loads and watch an etcd directory to register objects like Domains, Services
@@ -110,7 +116,11 @@ func (w *Watcher) registerDomain(node *etcd.Node, action string) {
 			w.Domains[domainName] = domain
 			glog.Infof("Registered domain %s with (%s) %s", domainName, domain.Typ, domain.Value)
 
+			//Broadcast the updated domain
+			w.broadcaster.Write(domain)
+
 		}
+
 	}
 
 }
@@ -185,6 +195,14 @@ func (w *Watcher) registerService(node *etcd.Node, action string) {
 
 					case serviceKey + "/domain":
 						service.Domain = node.Value
+					case serviceKey + "/lastAccess":
+						lastAccess := node.Value
+						lastAccessTime, err := time.Parse(TIME_FORMAT, lastAccess)
+						if err != nil {
+							glog.Errorf("Error parsing last access date with service %s: %s", service.name, err)
+							break
+						}
+						service.lastAccess = &lastAccessTime
 
 					case statusKey:
 						service.Status = &Status{}
@@ -211,6 +229,8 @@ func (w *Watcher) registerService(node *etcd.Node, action string) {
 					} else {
 						glog.Infof("Registering service %s without location", serviceName)
 					}
+					//Broadcast the updated object
+					w.broadcaster.Write(service)
 
 				}
 			}

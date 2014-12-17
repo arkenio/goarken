@@ -29,30 +29,30 @@ func IT_EtcdWatcher(t *testing.T) {
 		services := make(map[string]*ServiceCluster)
 
 		w = &Watcher{
-			client:        client,
-			domainPrefix:  "/domains",
-			servicePrefix: "/services",
-			domains:       domains,
-			services:      services,
+			Client:        client,
+			DomainPrefix:  "/domains",
+			ServicePrefix: "/services",
+			Domains:       domains,
+			Services:      services,
 		}
 
-		w.init()
+		w.Init()
 
 		Convey("When it is started", func() {
 
 			Convey("It doesn't contains any domain", func() {
-				So(len(w.domains), ShouldEqual, 0)
+				So(len(w.Domains), ShouldEqual, 0)
 			})
 
 			Convey("It doesn't contains any service", func() {
-				So(len(w.services), ShouldEqual, 0)
+				So(len(w.Services), ShouldEqual, 0)
 			})
 		})
 
 		Convey("When I add a domain", func() {
 
 			_, err := client.Set("/domains/mydomain.com/type", "service", 0)
-			So(len(w.domains), ShouldEqual, 0)
+			So(len(w.Domains), ShouldEqual, 0)
 			if err != nil {
 				panic(err)
 			}
@@ -62,10 +62,10 @@ func IT_EtcdWatcher(t *testing.T) {
 			if err != nil {
 				panic(err)
 			}
-			So(len(w.domains), ShouldEqual, 1)
-			domain := w.domains["mydomain.com"]
-			So(domain.typ, ShouldEqual, "service")
-			So(domain.value, ShouldEqual, "my_service")
+			So(len(w.Domains), ShouldEqual, 1)
+			domain := w.Domains["mydomain.com"]
+			So(domain.Typ, ShouldEqual, "service")
+			So(domain.Value, ShouldEqual, "my_service")
 
 		})
 
@@ -75,7 +75,7 @@ func IT_EtcdWatcher(t *testing.T) {
 				panic(err)
 			}
 			Convey("Then the domain is removed from the list of domains", func() {
-				So(len(w.domains), ShouldEqual, 0)
+				So(len(w.Domains), ShouldEqual, 0)
 
 			})
 
@@ -89,13 +89,13 @@ func IT_EtcdWatcher(t *testing.T) {
 			}
 
 			Convey("Then there should be one service", func() {
-				So(len(w.services), ShouldEqual, 1)
+				So(len(w.Services), ShouldEqual, 1)
 			})
 
 			Convey("Then the status should be nil", func() {
-				_, err := w.services["my_service"].Next()
+				_, err := w.Services["my_service"].Next()
 				So(err, ShouldNotBeNil)
-				So(err.(StatusError).status, ShouldBeNil)
+				So(err.(StatusError).Status, ShouldBeNil)
 
 			})
 
@@ -104,14 +104,14 @@ func IT_EtcdWatcher(t *testing.T) {
 		// Creates a service that has not status, meaning started by default
 		Convey("When I add a location to the service", func() {
 
-			b, _ := json.Marshal(&location{Host: "127.0.0.1", Port: 8080})
+			b, _ := json.Marshal(&Location{Host: "127.0.0.1", Port: 8080})
 			client.Set("/services/my_service/1/location", string(b[:]), 0)
 			WaitEtcd()
 
 			Convey("Then it should be started", func() {
-				service, err := w.services["my_service"].Next()
+				service, err := w.Services["my_service"].Next()
 				So(err, ShouldBeNil)
-				So(service.status.compute(), ShouldEqual, STARTED_STATUS)
+				So(service.Status.Compute(), ShouldEqual, STARTED_STATUS)
 			})
 		})
 
@@ -121,9 +121,9 @@ func IT_EtcdWatcher(t *testing.T) {
 			client.Set("/services/my_service/1/status/current", "stopped", 0)
 			WaitEtcd()
 			Convey("Then it should be stopped", func() {
-				_, err := w.services["my_service"].Next()
+				_, err := w.Services["my_service"].Next()
 				So(err, ShouldNotBeNil)
-				So(err.(StatusError).computedStatus, ShouldEqual, STOPPED_STATUS)
+				So(err.(StatusError).ComputedStatus, ShouldEqual, STOPPED_STATUS)
 			})
 
 		})
@@ -132,9 +132,9 @@ func IT_EtcdWatcher(t *testing.T) {
 			client.Set("/services/my_service/1/status/expected", "started", 0)
 			WaitEtcd()
 			Convey("Then the service should be in error (meaning unit has not set starting as current status)", func() {
-				_, err := w.services["my_service"].Next()
+				_, err := w.Services["my_service"].Next()
 				So(err, ShouldNotBeNil)
-				So(err.(StatusError).computedStatus, ShouldEqual, ERROR_STATUS)
+				So(err.(StatusError).ComputedStatus, ShouldEqual, ERROR_STATUS)
 			})
 		})
 
@@ -142,9 +142,9 @@ func IT_EtcdWatcher(t *testing.T) {
 			client.Set("/services/my_service/1/status/current", "starting", 0)
 			WaitEtcd()
 			Convey("Then the service should be in starting", func() {
-				_, err := w.services["my_service"].Next()
+				_, err := w.Services["my_service"].Next()
 				So(err, ShouldNotBeNil)
-				So(err.(StatusError).computedStatus, ShouldEqual, STARTING_STATUS)
+				So(err.(StatusError).ComputedStatus, ShouldEqual, STARTING_STATUS)
 			})
 		})
 
@@ -152,9 +152,9 @@ func IT_EtcdWatcher(t *testing.T) {
 			client.Set("/services/my_service/1/status/current", "started", 0)
 			WaitEtcd()
 			Convey("Then the service should be in error (if not alive it should be in error)", func() {
-				_, err := w.services["my_service"].Next()
+				_, err := w.Services["my_service"].Next()
 				So(err, ShouldNotBeNil)
-				So(err.(StatusError).computedStatus, ShouldEqual, ERROR_STATUS)
+				So(err.(StatusError).ComputedStatus, ShouldEqual, ERROR_STATUS)
 			})
 		})
 
@@ -163,9 +163,9 @@ func IT_EtcdWatcher(t *testing.T) {
 			client.Set("/services/my_service/1/status/alive", "1", 0)
 			WaitEtcd()
 			Convey("Then the service should be starting", func() {
-				service, err := w.services["my_service"].Next()
+				service, err := w.Services["my_service"].Next()
 				So(err, ShouldBeNil)
-				So(service.status.compute(), ShouldEqual, STARTED_STATUS)
+				So(service.Status.Compute(), ShouldEqual, STARTED_STATUS)
 			})
 		})
 
@@ -174,9 +174,9 @@ func IT_EtcdWatcher(t *testing.T) {
 			client.Set("/services/my_service/1/status/expected", PASSIVATED_STATUS, 0)
 			WaitEtcd()
 			Convey("Then the service should be starting", func() {
-				_, err := w.services["my_service"].Next()
+				_, err := w.Services["my_service"].Next()
 				So(err, ShouldNotBeNil)
-				So(err.(StatusError).computedStatus, ShouldEqual, PASSIVATED_STATUS)
+				So(err.(StatusError).ComputedStatus, ShouldEqual, PASSIVATED_STATUS)
 			})
 		})
 

@@ -1,6 +1,9 @@
 package goarken
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 type Location struct {
 	Host string `json:"host"`
@@ -31,6 +34,10 @@ type Service struct {
 	LastAccess *time.Time
 }
 
+func (s *Service) UnitName() string {
+	return "nxio@" + strings.Split(s.Name, "_")[1] + ".service"
+}
+
 func (service *Service) Equals(other *Service) bool {
 	if service == nil && other == nil {
 		return true
@@ -39,4 +46,17 @@ func (service *Service) Equals(other *Service) bool {
 	return service != nil && other != nil &&
 		service.Location.Equals(other.Location) &&
 		service.Status.Equals(other.Status)
+}
+
+func (s *Service) StartedSince() *time.Time {
+	if s == nil {
+		return nil
+	}
+
+	if s.Status != nil &&
+		s.Status.Current == STARTED_STATUS {
+		return s.LastAccess
+	} else {
+		return nil
+	}
 }
