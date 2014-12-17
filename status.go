@@ -26,7 +26,7 @@ func (s StatusError) Error() string {
 	return s.computedStatus
 }
 
-func (s *Status) equals(other *Status) bool {
+func (s *Status) Equals(other *Status) bool {
 	if s == nil && other == nil {
 		return true
 	}
@@ -35,7 +35,7 @@ func (s *Status) equals(other *Status) bool {
 		s.expected == other.expected
 }
 
-func (s *Status) compute() string {
+func (s *Status) Compute() string {
 
 	if s != nil {
 		alive := s.alive

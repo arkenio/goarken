@@ -5,7 +5,7 @@ type Domain struct {
 	value string
 }
 
-func (domain *Domain) equals(other *Domain) bool {
+func (domain *Domain) Equals(other *Domain) bool {
 	if domain == nil && other == nil {
 		return true
 	}

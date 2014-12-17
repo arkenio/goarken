@@ -7,7 +7,7 @@ type location struct {
 	Port int    `json:"port"`
 }
 
-func (s *location) equals(other *location) bool {
+func (s *location) Equals(other *location) bool {
 	if s == nil && other == nil {
 		return true
 	}
@@ -17,7 +17,7 @@ func (s *location) equals(other *location) bool {
 		s.Port == other.Port
 }
 
-func (s *location) isFullyDefined() bool {
+func (s *location) IsFullyDefined() bool {
 	return s.Host != "" && s.Port != 0
 }
 
@@ -31,12 +31,12 @@ type Service struct {
 	lastAccess *time.Time
 }
 
-func (service *Service) equals(other *Service) bool {
+func (service *Service) Equals(other *Service) bool {
 	if service == nil && other == nil {
 		return true
 	}
 
 	return service != nil && other != nil &&
-		service.location.equals(other.location) &&
-		service.status.equals(other.status)
+		service.location.Equals(other.location) &&
+		service.status.Equals(other.status)
 }

@@ -27,8 +27,8 @@ func (cl *ServiceCluster) Next() (*Service, error) {
 		cl.lastIndex = index
 
 		instance = cl.instances[index]
-		glog.V(5).Infof("Checking instance %d status : %s", index, instance.status.compute())
-		if instance.status.compute() == STARTED_STATUS && instance.location.isFullyDefined() {
+		glog.V(5).Infof("Checking instance %d status : %s", index, instance.status.Compute())
+		if instance.status.Compute() == STARTED_STATUS && instance.location.IsFullyDefined() {
 			return instance, nil
 		}
 
@@ -36,7 +36,7 @@ func (cl *ServiceCluster) Next() (*Service, error) {
 
 	lastStatus := instance.status
 
-	if lastStatus == nil && !instance.location.isFullyDefined() {
+	if lastStatus == nil && !instance.location.IsFullyDefined() {
 		glog.Infof("No status and no location for %s", instance.name)
 		return nil, StatusError{ERROR_STATUS, lastStatus}
 	}
@@ -46,7 +46,7 @@ func (cl *ServiceCluster) Next() (*Service, error) {
 	glog.V(5).Infof("   current  : %s", lastStatus.current)
 	glog.V(5).Infof("   expected : %s", lastStatus.expected)
 	glog.V(5).Infof("   alive : %s", lastStatus.alive)
-	return nil, StatusError{instance.status.compute(), lastStatus}
+	return nil, StatusError{instance.status.Compute(), lastStatus}
 }
 
 func (cl *ServiceCluster) Remove(instanceIndex string) {
