@@ -27,33 +27,33 @@ func (cl *ServiceCluster) Next() (*Service, error) {
 		cl.lastIndex = index
 
 		instance = cl.instances[index]
-		glog.V(5).Infof("Checking instance %d status : %s", index, instance.status.Compute())
-		if instance.status.Compute() == STARTED_STATUS && instance.location.IsFullyDefined() {
+		glog.V(5).Infof("Checking instance %d Status : %s", index, instance.Status.Compute())
+		if instance.Status.Compute() == STARTED_STATUS && instance.Location.IsFullyDefined() {
 			return instance, nil
 		}
 
 	}
 
-	lastStatus := instance.status
+	lastStatus := instance.Status
 
-	if lastStatus == nil && !instance.location.IsFullyDefined() {
-		glog.Infof("No status and no location for %s", instance.name)
+	if lastStatus == nil && !instance.Location.IsFullyDefined() {
+		glog.Infof("No Status and no location for %s", instance.Name)
 		return nil, StatusError{ERROR_STATUS, lastStatus}
 	}
 
-	glog.V(5).Infof("No instance started for %s", instance.name)
-	glog.V(5).Infof("Last status :")
-	glog.V(5).Infof("   current  : %s", lastStatus.current)
-	glog.V(5).Infof("   expected : %s", lastStatus.expected)
-	glog.V(5).Infof("   alive : %s", lastStatus.alive)
-	return nil, StatusError{instance.status.Compute(), lastStatus}
+	glog.V(5).Infof("No instance started for %s", instance.Name)
+	glog.V(5).Infof("Last Status :")
+	glog.V(5).Infof("   current  : %s", lastStatus.Current)
+	glog.V(5).Infof("   expected : %s", lastStatus.Expected)
+	glog.V(5).Infof("   alive : %s", lastStatus.Alive)
+	return nil, StatusError{instance.Status.Compute(), lastStatus}
 }
 
 func (cl *ServiceCluster) Remove(instanceIndex string) {
 
 	match := -1
 	for k, v := range cl.instances {
-		if v.index == instanceIndex {
+		if v.Index == instanceIndex {
 			match = k
 		}
 	}
@@ -65,7 +65,7 @@ func (cl *ServiceCluster) Remove(instanceIndex string) {
 // Get an service by its key (index). Returns nil if not found.
 func (cl *ServiceCluster) Get(instanceIndex string) *Service {
 	for i, v := range cl.instances {
-		if v.index == instanceIndex {
+		if v.Index == instanceIndex {
 			return cl.instances[i]
 		}
 	}
@@ -74,7 +74,7 @@ func (cl *ServiceCluster) Get(instanceIndex string) *Service {
 
 func (cl *ServiceCluster) Add(service *Service) {
 	for index, v := range cl.instances {
-		if v.index == service.index {
+		if v.Index == service.Index {
 			cl.instances[index] = service
 			return
 		}
@@ -85,6 +85,6 @@ func (cl *ServiceCluster) Add(service *Service) {
 
 func (cl *ServiceCluster) Dump(action string) {
 	for _, v := range cl.instances {
-		glog.Infof("Dump after %s %s -> %s:%d", action, v.index, v.location.Host, v.location.Port)
+		glog.Infof("Dump after %s %s -> %s:%d", action, v.Index, v.Location.Host, v.Location.Port)
 	}
 }

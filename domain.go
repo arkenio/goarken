@@ -1,8 +1,8 @@
 package goarken
 
 type Domain struct {
-	typ   string
-	value string
+	Typ   string
+	Value string
 }
 
 func (domain *Domain) Equals(other *Domain) bool {
@@ -11,5 +11,5 @@ func (domain *Domain) Equals(other *Domain) bool {
 	}
 
 	return domain != nil && other != nil &&
-		domain.typ == other.typ && domain.value == other.value
+		domain.Typ == other.Typ && domain.Value == other.Value
 }

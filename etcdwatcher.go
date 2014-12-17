@@ -98,17 +98,17 @@ func (w *Watcher) registerDomain(node *etcd.Node, action string) {
 		for _, node := range response.Node.Nodes {
 			switch node.Key {
 			case domainKey + "/type":
-				domain.typ = node.Value
+				domain.Typ = node.Value
 			case domainKey + "/value":
-				domain.value = node.Value
+				domain.Value = node.Value
 			}
 		}
 
 		actualDomain := w.Domains[domainName]
 
-		if domain.typ != "" && domain.value != "" && !domain.Equals(actualDomain) {
+		if domain.Typ != "" && domain.Value != "" && !domain.Equals(actualDomain) {
 			w.Domains[domainName] = domain
-			glog.Infof("Registered domain %s with (%s) %s", domainName, domain.typ, domain.value)
+			glog.Infof("Registered domain %s with (%s) %s", domainName, domain.Typ, domain.Value)
 
 		}
 	}
@@ -162,10 +162,10 @@ func (w *Watcher) registerService(node *etcd.Node, action string) {
 				}
 
 				service := &Service{}
-				service.location = &location{}
-				service.index = serviceIndex
-				service.nodeKey = serviceKey
-				service.name = serviceName
+				service.Location = &Location{}
+				service.Index = serviceIndex
+				service.NodeKey = serviceKey
+				service.Name = serviceName
 
 				if action == "delete" {
 					glog.Infof("Removing service %s", serviceName)
@@ -176,38 +176,38 @@ func (w *Watcher) registerService(node *etcd.Node, action string) {
 				for _, node := range response.Node.Nodes {
 					switch node.Key {
 					case serviceKey + "/location":
-						location := &location{}
+						location := &Location{}
 						err := json.Unmarshal([]byte(node.Value), location)
 						if err == nil {
-							service.location.Host = location.Host
-							service.location.Port = location.Port
+							service.Location.Host = location.Host
+							service.Location.Port = location.Port
 						}
 
 					case serviceKey + "/domain":
-						service.domain = node.Value
+						service.Domain = node.Value
 
 					case statusKey:
-						service.status = &Status{}
-						service.status.service = service
+						service.Status = &Status{}
+						service.Status.Service = service
 						for _, subNode := range node.Nodes {
 							switch subNode.Key {
 							case statusKey + "/alive":
-								service.status.alive = subNode.Value
+								service.Status.Alive = subNode.Value
 							case statusKey + "/current":
-								service.status.current = subNode.Value
+								service.Status.Current = subNode.Value
 							case statusKey + "/expected":
-								service.status.expected = subNode.Value
+								service.Status.Expected = subNode.Value
 							}
 						}
 					}
 				}
 
-				actualEnv := w.Services[serviceName].Get(service.index)
+				actualEnv := w.Services[serviceName].Get(service.Index)
 
 				if !actualEnv.Equals(service) {
 					w.Services[serviceName].Add(service)
-					if service.location.Host != "" && service.location.Port != 0 {
-						glog.Infof("Registering service %s with location : http://%s:%d/", serviceName, service.location.Host, service.location.Port)
+					if service.Location.Host != "" && service.Location.Port != 0 {
+						glog.Infof("Registering service %s with location : http://%s:%d/", serviceName, service.Location.Host, service.Location.Port)
 					} else {
 						glog.Infof("Registering service %s without location", serviceName)
 					}

@@ -11,10 +11,10 @@ const (
 )
 
 type Status struct {
-	alive    string
-	current  string
-	expected string
-	service  *Service
+	Alive    string
+	Current  string
+	Expected string
+	Service  *Service
 }
 
 type StatusError struct {
@@ -30,35 +30,35 @@ func (s *Status) Equals(other *Status) bool {
 	if s == nil && other == nil {
 		return true
 	}
-	return s != nil && other != nil && s.alive == other.alive &&
-		s.current == other.current &&
-		s.expected == other.expected
+	return s != nil && other != nil && s.Alive == other.Alive &&
+		s.Current == other.Current &&
+		s.Expected == other.Expected
 }
 
 func (s *Status) Compute() string {
 
 	if s != nil {
-		alive := s.alive
-		expected := s.expected
-		current := s.current
-		switch current {
+		Alive := s.Alive
+		Expected := s.Expected
+		Current := s.Current
+		switch Current {
 		case STOPPED_STATUS:
-			if expected == PASSIVATED_STATUS {
+			if Expected == PASSIVATED_STATUS {
 				return PASSIVATED_STATUS
-			} else if expected == STOPPED_STATUS {
+			} else if Expected == STOPPED_STATUS {
 				return STOPPED_STATUS
 			} else {
 				return ERROR_STATUS
 			}
 		case STARTING_STATUS:
-			if expected == STARTED_STATUS {
+			if Expected == STARTED_STATUS {
 				return STARTING_STATUS
 			} else {
 				return ERROR_STATUS
 			}
 		case STARTED_STATUS:
-			if alive != "" {
-				if expected != STARTED_STATUS {
+			if Alive != "" {
+				if Expected != STARTED_STATUS {
 					return ERROR_STATUS
 				}
 				return STARTED_STATUS
@@ -66,7 +66,7 @@ func (s *Status) Compute() string {
 				return ERROR_STATUS
 			}
 		case STOPPING_STATUS:
-			if expected == STOPPED_STATUS {
+			if Expected == STOPPED_STATUS {
 				return STOPPED_STATUS
 			} else {
 				return ERROR_STATUS

@@ -2,12 +2,12 @@ package goarken
 
 import "time"
 
-type location struct {
+type Location struct {
 	Host string `json:"host"`
 	Port int    `json:"port"`
 }
 
-func (s *location) Equals(other *location) bool {
+func (s *Location) Equals(other *Location) bool {
 	if s == nil && other == nil {
 		return true
 	}
@@ -17,18 +17,18 @@ func (s *location) Equals(other *location) bool {
 		s.Port == other.Port
 }
 
-func (s *location) IsFullyDefined() bool {
+func (s *Location) IsFullyDefined() bool {
 	return s.Host != "" && s.Port != 0
 }
 
 type Service struct {
-	index      string
-	nodeKey    string
-	location   *location
-	domain     string
-	name       string
-	status     *Status
-	lastAccess *time.Time
+	Index      string
+	NodeKey    string
+	Location   *Location
+	Domain     string
+	Name       string
+	Status     *Status
+	LastAccess *time.Time
 }
 
 func (service *Service) Equals(other *Service) bool {
@@ -37,6 +37,6 @@ func (service *Service) Equals(other *Service) bool {
 	}
 
 	return service != nil && other != nil &&
-		service.location.Equals(other.location) &&
-		service.status.Equals(other.status)
+		service.Location.Equals(other.Location) &&
+		service.Status.Equals(other.Status)
 }
