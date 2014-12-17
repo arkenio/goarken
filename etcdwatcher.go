@@ -9,6 +9,10 @@ import (
 	"time"
 )
 
+const (
+	TIME_FORMAT = "2006-01-02 15:04:05"
+)
+
 // A Watcher loads and watch the etcd hierarchy for Domains and Services.
 type Watcher struct {
 	Client        *etcd.Client
@@ -199,10 +203,10 @@ func (w *Watcher) registerService(node *etcd.Node, action string) {
 						lastAccess := node.Value
 						lastAccessTime, err := time.Parse(TIME_FORMAT, lastAccess)
 						if err != nil {
-							glog.Errorf("Error parsing last access date with service %s: %s", service.name, err)
+							glog.Errorf("Error parsing last access date with service %s: %s", service.Name, err)
 							break
 						}
-						service.lastAccess = &lastAccessTime
+						service.LastAccess = &lastAccessTime
 
 					case statusKey:
 						service.Status = &Status{}
