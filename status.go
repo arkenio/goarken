@@ -18,12 +18,12 @@ type Status struct {
 }
 
 type StatusError struct {
-	computedStatus string
-	status         *Status
+	ComputedStatus string
+	Status         *Status
 }
 
 func (s StatusError) Error() string {
-	return s.computedStatus
+	return s.ComputedStatus
 }
 
 func (s *Status) Equals(other *Status) bool {
