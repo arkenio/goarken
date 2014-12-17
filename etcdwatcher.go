@@ -9,8 +9,8 @@ import (
 	"time"
 )
 
-// A watcher loads and watch the etcd hierarchy for domains and services.
-type watcher struct {
+// A Watcher loads and watch the etcd hierarchy for domains and services.
+type Watcher struct {
 	client        *etcd.Client
 	domainPrefix  string
 	servicePrefix string
@@ -19,7 +19,7 @@ type watcher struct {
 }
 
 //Init domains and services.
-func (w *watcher) init() {
+func (w *Watcher) init() {
 	go w.loadAndWatch(w.domainPrefix, w.registerDomain)
 	go w.loadAndWatch(w.servicePrefix, w.registerService)
 
@@ -27,7 +27,7 @@ func (w *watcher) init() {
 
 // Loads and watch an etcd directory to register objects like domains, services
 // etc... The register function is passed the etcd Node that has been loaded.
-func (w *watcher) loadAndWatch(etcdDir string, registerFunc func(*etcd.Node, string)) {
+func (w *Watcher) loadAndWatch(etcdDir string, registerFunc func(*etcd.Node, string)) {
 	w.loadPrefix(etcdDir, registerFunc)
 	stop := make(chan struct{})
 
@@ -50,7 +50,7 @@ func (w *watcher) loadAndWatch(etcdDir string, registerFunc func(*etcd.Node, str
 
 }
 
-func (w *watcher) loadPrefix(etcDir string, registerFunc func(*etcd.Node, string)) {
+func (w *Watcher) loadPrefix(etcDir string, registerFunc func(*etcd.Node, string)) {
 	response, err := w.client.Get(etcDir, true, true)
 	if err == nil {
 		for _, serviceNode := range response.Node.Nodes {
@@ -60,7 +60,7 @@ func (w *watcher) loadPrefix(etcDir string, registerFunc func(*etcd.Node, string
 	}
 }
 
-func (w *watcher) watch(updateChannel chan *etcd.Response, stop chan struct{}, key string, registerFunc func(*etcd.Node, string)) {
+func (w *Watcher) watch(updateChannel chan *etcd.Response, stop chan struct{}, key string, registerFunc func(*etcd.Node, string)) {
 	for {
 		select {
 		case <-stop:
@@ -77,7 +77,7 @@ func (w *watcher) watch(updateChannel chan *etcd.Response, stop chan struct{}, k
 	}
 }
 
-func (w *watcher) registerDomain(node *etcd.Node, action string) {
+func (w *Watcher) registerDomain(node *etcd.Node, action string) {
 
 	domainName := w.getDomainForNode(node)
 
@@ -111,31 +111,31 @@ func (w *watcher) registerDomain(node *etcd.Node, action string) {
 
 }
 
-func (w *watcher) RemoveDomain(key string) {
+func (w *Watcher) RemoveDomain(key string) {
 	delete(w.domains, key)
 
 }
 
-func (w *watcher) getDomainForNode(node *etcd.Node) string {
+func (w *Watcher) getDomainForNode(node *etcd.Node) string {
 	r := regexp.MustCompile(w.domainPrefix + "/(.*)")
 	return strings.Split(r.FindStringSubmatch(node.Key)[1], "/")[0]
 }
 
-func (w *watcher) getEnvForNode(node *etcd.Node) string {
+func (w *Watcher) getEnvForNode(node *etcd.Node) string {
 	r := regexp.MustCompile(w.servicePrefix + "/(.*)(/.*)*")
 	return strings.Split(r.FindStringSubmatch(node.Key)[1], "/")[0]
 }
 
-func (w *watcher) getEnvIndexForNode(node *etcd.Node) string {
+func (w *Watcher) getEnvIndexForNode(node *etcd.Node) string {
 	r := regexp.MustCompile(w.servicePrefix + "/(.*)(/.*)*")
 	return strings.Split(r.FindStringSubmatch(node.Key)[1], "/")[1]
 }
 
-func (w *watcher) RemoveEnv(serviceName string) {
+func (w *Watcher) RemoveEnv(serviceName string) {
 	delete(w.services, serviceName)
 }
 
-func (w *watcher) registerService(node *etcd.Node, action string) {
+func (w *Watcher) registerService(node *etcd.Node, action string) {
 	serviceName := w.getEnvForNode(node)
 
 	// Get service's root node instead of changed node.

@@ -2,6 +2,7 @@ package goarken
 
 import (
 	"encoding/json"
+	"github.com/coreos/go-etcd/etcd"
 	. "github.com/smartystreets/goconvey/convey"
 	"os"
 	"testing"
@@ -16,19 +17,25 @@ func Test_EtcdWatcher(t *testing.T) {
 
 func IT_EtcdWatcher(t *testing.T) {
 
-	c := parseConfig()
-	client, _ := c.getEtcdClient()
+	client := etcd.NewClient([]string{})
 
 	client.Delete("/domains", true)
 	client.Delete("/services", true)
 
-	var w *watcher
+	var w *Watcher
 
-	Convey("Given a watcher", t, func() {
+	Convey("Given a Watcher", t, func() {
 		domains := make(map[string]*Domain)
 		services := make(map[string]*ServiceCluster)
 
-		w, _ = NewEtcdWatcher(c, domains, services)
+		w = &Watcher{
+			client:        client,
+			domainPrefix:  "/domains",
+			servicePrefix: "/services",
+			domains:       domains,
+			services:      services,
+		}
+
 		w.init()
 
 		Convey("When it is started", func() {
