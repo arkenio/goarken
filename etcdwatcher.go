@@ -175,7 +175,7 @@ func (w *Watcher) registerService(node *etcd.Node, action string) {
 					w.Services[serviceName] = &ServiceCluster{}
 				}
 
-				service := &Service{}
+				service := NewService(w.Client)
 				service.Location = &Location{}
 				service.Index = serviceIndex
 				service.NodeKey = serviceKey
@@ -235,6 +235,7 @@ func (w *Watcher) registerService(node *etcd.Node, action string) {
 					}
 					//Broadcast the updated object
 					w.broadcaster.Write(service)
+					w.broadcaster.Write(w.Services[serviceName])
 
 				}
 			}

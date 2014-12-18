@@ -88,3 +88,7 @@ func (cl *ServiceCluster) Dump(action string) {
 		glog.Infof("Dump after %s %s -> %s:%d", action, v.Index, v.Location.Host, v.Location.Port)
 	}
 }
+
+func (cl *ServiceCluster) GetInstance() []*Service {
+	return cl.instances
+}
