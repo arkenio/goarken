@@ -89,6 +89,6 @@ func (cl *ServiceCluster) Dump(action string) {
 	}
 }
 
-func (cl *ServiceCluster) GetInstance() []*Service {
+func (cl *ServiceCluster) GetInstances() []*Service {
 	return cl.instances
 }
