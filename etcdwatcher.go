@@ -167,7 +167,7 @@ func (w *Watcher) registerService(node *etcd.Node, action string) {
 
 			serviceIndex := w.getEnvIndexForNode(indexNode)
 
-			if _, err := strconv.Atoi(serviceIndex); err == nil {
+			if _, err := strconv.Atoi(serviceIndex); err != nil {
 				// Don't handle node that are not integer (ie config node)
 				continue
 			}
