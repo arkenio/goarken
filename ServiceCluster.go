@@ -7,6 +7,7 @@ import (
 )
 
 type ServiceCluster struct {
+	Name      string
 	instances []*Service
 	lastIndex int
 	lock      sync.RWMutex

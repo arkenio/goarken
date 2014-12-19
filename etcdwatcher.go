@@ -27,10 +27,12 @@ type Watcher struct {
 func (w *Watcher) Init() {
 	w.broadcaster = NewBroadcaster()
 	if w.Domains != nil {
-		go w.loadAndWatch(w.DomainPrefix, w.registerDomain)
+		w.loadPrefix(w.DomainPrefix, w.registerDomain)
+		go w.doWatch(w.DomainPrefix, w.registerDomain)
 	}
 	if w.Services != nil {
-		go w.loadAndWatch(w.ServicePrefix, w.registerService)
+		w.loadPrefix(w.ServicePrefix, w.registerService)
+		go w.doWatch(w.ServicePrefix, w.registerService)
 	}
 
 }
@@ -41,8 +43,7 @@ func (w *Watcher) Listen() chan interface{} {
 
 // Loads and watch an etcd directory to register objects like Domains, Services
 // etc... The register function is passed the etcd Node that has been loaded.
-func (w *Watcher) loadAndWatch(etcdDir string, registerFunc func(*etcd.Node, string)) {
-	w.loadPrefix(etcdDir, registerFunc)
+func (w *Watcher) doWatch(etcdDir string, registerFunc func(*etcd.Node, string)) {
 	stop := make(chan struct{})
 
 	for {
@@ -172,7 +173,9 @@ func (w *Watcher) registerService(node *etcd.Node, action string) {
 			if err == nil {
 
 				if w.Services[serviceName] == nil {
-					w.Services[serviceName] = &ServiceCluster{}
+					w.Services[serviceName] = &ServiceCluster{
+						Name: serviceName,
+					}
 				}
 
 				service := NewService(w.Client)
