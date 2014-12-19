@@ -5,6 +5,7 @@ import (
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/golang/glog"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -165,6 +166,12 @@ func (w *Watcher) registerService(node *etcd.Node, action string) {
 		for _, indexNode := range serviceNode.Node.Nodes {
 
 			serviceIndex := w.getEnvIndexForNode(indexNode)
+
+			if _, err := strconv.Atoi(serviceIndex); err == nil {
+				// Don't handle node that are not integer (ie config node)
+				continue
+			}
+
 			serviceKey := w.ServicePrefix + "/" + serviceName + "/" + serviceIndex
 			statusKey := serviceKey + "/status"
 
