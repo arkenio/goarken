@@ -58,8 +58,8 @@ func (w *Watcher) doWatch(etcdDir string, registerFunc func(*etcd.Node, string))
 		//If we are here, this means etcd watch ended in an error
 		stop <- struct{}{}
 		w.Client.CloseCURL()
-		glog.Errorf("Error when watching %s : %v", etcdDir, err)
-		glog.Errorf("Waiting 1 second and relaunch watch")
+		glog.Warningf("Error when watching %s : %v", etcdDir, err)
+		glog.Warningf("Waiting 1 second and relaunch watch")
 		time.Sleep(time.Second)
 
 	}
