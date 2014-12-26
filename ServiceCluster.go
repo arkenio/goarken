@@ -43,10 +43,15 @@ func (cl *ServiceCluster) Next() (*Service, error) {
 	}
 
 	glog.V(5).Infof("No instance started for %s", instance.Name)
-	glog.V(5).Infof("Last Status :")
-	glog.V(5).Infof("   current  : %s", lastStatus.Current)
-	glog.V(5).Infof("   expected : %s", lastStatus.Expected)
-	glog.V(5).Infof("   alive : %s", lastStatus.Alive)
+	if lastStatus != nil {
+		glog.V(5).Infof("Last Status :")
+		glog.V(5).Infof("   current  : %s", lastStatus.Current)
+		glog.V(5).Infof("   expected : %s", lastStatus.Expected)
+		glog.V(5).Infof("   alive : %s", lastStatus.Alive)
+	} else {
+		glog.V(5).Infof("No status available")
+	}
+
 	return nil, StatusError{instance.Status.Compute(), lastStatus}
 }
 
