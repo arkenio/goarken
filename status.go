@@ -76,5 +76,5 @@ func (s *Status) Compute() string {
 			return ERROR_STATUS
 		}
 	}
-	return STARTED_STATUS
+	return NA_STATUS
 }
