@@ -78,8 +78,8 @@ func Test_status(t *testing.T) {
 			var status *Status
 			status = nil
 
-			Convey("Then the computed status should be started", func() {
-				So(status.Compute(), ShouldEqual, STARTED_STATUS)
+			Convey("Then the computed status should be NA", func() {
+				So(status.Compute(), ShouldEqual, NA_STATUS)
 			})
 
 		})
