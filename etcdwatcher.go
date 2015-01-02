@@ -102,6 +102,20 @@ func (w *Watcher) RemoveEnv(serviceName string) {
 	delete(w.Services, serviceName)
 }
 
+func GetDomainFromPath(domainPath string, client *etcd.Client) (*Domain, error) {
+	// Get service's root node instead of changed node.
+	response, err := client.Get(domainPath, true, true)
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("Unable to get information for service %s from etcd", domainPath))
+	}
+
+	return GetDomainFromNode(response.Node), nil
+}
+
+func GetDomainFromNode(node *etcd.Node) *Domain {
+	return NewDomain(node)
+}
+
 func GetServiceClusterFromPath(serviceClusterPath string, client *etcd.Client) (*ServiceCluster, error) {
 	// Get service's root node instead of changed node.
 	response, err := client.Get(serviceClusterPath, true, true)
