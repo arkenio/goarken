@@ -1,12 +1,10 @@
 package goarken
 
 import (
-	"encoding/json"
+	"errors"
+	"fmt"
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/golang/glog"
-	"regexp"
-	"strconv"
-	"strings"
 	"time"
 )
 
@@ -27,6 +25,8 @@ type Watcher struct {
 //Init Domains and Services.
 func (w *Watcher) Init() {
 	w.broadcaster = NewBroadcaster()
+	setServicePrefix(w.ServicePrefix)
+	setDomainPrefix(w.DomainPrefix)
 	if w.Domains != nil {
 		w.loadPrefix(w.DomainPrefix, w.registerDomain)
 		go w.doWatch(w.DomainPrefix, w.registerDomain)
@@ -93,28 +93,53 @@ func (w *Watcher) watch(updateChannel chan *etcd.Response, stop chan struct{}, k
 	}
 }
 
+func (w *Watcher) RemoveDomain(key string) {
+	delete(w.Domains, key)
+
+}
+
+func (w *Watcher) RemoveEnv(serviceName string) {
+	delete(w.Services, serviceName)
+}
+
+func GetServiceClusterFromPath(serviceClusterPath string, client *etcd.Client) (*ServiceCluster, error) {
+	// Get service's root node instead of changed node.
+	response, err := client.Get(serviceClusterPath, true, true)
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("Unable to get information for service %s from etcd", serviceClusterPath))
+	}
+
+	return GetServiceClusterFromNode(response.Node), nil
+}
+
+func GetServiceClusterFromNode(clusterNode *etcd.Node) *ServiceCluster {
+
+	sc := NewServiceCluster("")
+	for _, indexNode := range clusterNode.Nodes {
+		service, err := NewService(indexNode)
+		sc.Name = service.Name
+		if err == nil {
+			sc.Add(service)
+		}
+	}
+	return sc
+
+}
+
 func (w *Watcher) registerDomain(node *etcd.Node, action string) {
 
-	domainName := w.getDomainForNode(node)
-
-	domainKey := w.DomainPrefix + "/" + domainName
-	response, err := w.Client.Get(domainKey, true, false)
+	domainName := getDomainForNode(node)
 
 	if action == "delete" || action == "expire" {
 		w.RemoveDomain(domainName)
 		return
 	}
 
+	domainKey := w.DomainPrefix + "/" + domainName
+	response, err := w.Client.Get(domainKey, true, false)
+
 	if err == nil {
-		domain := &Domain{}
-		for _, node := range response.Node.Nodes {
-			switch node.Key {
-			case domainKey + "/type":
-				domain.Typ = node.Value
-			case domainKey + "/value":
-				domain.Value = node.Value
-			}
-		}
+		domain := NewDomain(response.Node)
 
 		actualDomain := w.Domains[domainName]
 
@@ -131,111 +156,29 @@ func (w *Watcher) registerDomain(node *etcd.Node, action string) {
 
 }
 
-func (w *Watcher) RemoveDomain(key string) {
-	delete(w.Domains, key)
-
-}
-
-func (w *Watcher) getDomainForNode(node *etcd.Node) string {
-	r := regexp.MustCompile(w.DomainPrefix + "/(.*)")
-	return strings.Split(r.FindStringSubmatch(node.Key)[1], "/")[0]
-}
-
-func (w *Watcher) getEnvForNode(node *etcd.Node) string {
-	r := regexp.MustCompile(w.ServicePrefix + "/(.*)(/.*)*")
-	return strings.Split(r.FindStringSubmatch(node.Key)[1], "/")[0]
-}
-
-func (w *Watcher) getEnvIndexForNode(node *etcd.Node) string {
-	r := regexp.MustCompile(w.ServicePrefix + "/(.*)(/.*)*")
-	return strings.Split(r.FindStringSubmatch(node.Key)[1], "/")[1]
-}
-
-func (w *Watcher) RemoveEnv(serviceName string) {
-	delete(w.Services, serviceName)
-}
-
 func (w *Watcher) registerService(node *etcd.Node, action string) {
-	serviceName := w.getEnvForNode(node)
+
+	serviceName := getEnvForNode(node)
+
+	if action == "delete" && node.Key == w.ServicePrefix+"/"+serviceName {
+		w.RemoveEnv(serviceName)
+		return
+	}
 
 	// Get service's root node instead of changed node.
-	serviceNode, err := w.Client.Get(w.ServicePrefix+"/"+serviceName, true, true)
+	response, err := w.Client.Get(w.ServicePrefix+"/"+serviceName, true, true)
 
 	if err == nil {
 
-		for _, indexNode := range serviceNode.Node.Nodes {
+		sc := GetServiceClusterFromNode(response.Node)
 
-			serviceIndex := w.getEnvIndexForNode(indexNode)
+		if w.Services[sc.Name] == nil {
+			w.Services[sc.Name] = sc
+			w.broadcaster.Write(w.Services[serviceName])
 
-			if _, err := strconv.Atoi(serviceIndex); err != nil {
-				// Don't handle node that are not integer (ie config node)
-				continue
-			}
-
-			serviceKey := w.ServicePrefix + "/" + serviceName + "/" + serviceIndex
-			statusKey := serviceKey + "/status"
-
-			response, err := w.Client.Get(serviceKey, true, true)
-
-			if err == nil {
-
-				if w.Services[serviceName] == nil {
-					w.Services[serviceName] = &ServiceCluster{
-						Name: serviceName,
-					}
-				}
-
-				service := NewService(w.Client)
-				service.Location = &Location{}
-				service.Index = serviceIndex
-				service.NodeKey = serviceKey
-				service.Name = serviceName
-
-				if action == "delete" {
-					glog.Infof("Removing service %s", serviceName)
-					w.RemoveEnv(serviceName)
-					return
-				}
-
-				for _, node := range response.Node.Nodes {
-					switch node.Key {
-					case serviceKey + "/location":
-						location := &Location{}
-						err := json.Unmarshal([]byte(node.Value), location)
-						if err == nil {
-							service.Location.Host = location.Host
-							service.Location.Port = location.Port
-						}
-
-					case serviceKey + "/domain":
-						service.Domain = node.Value
-					case serviceKey + "/lastAccess":
-						lastAccess := node.Value
-						lastAccessTime, err := time.Parse(TIME_FORMAT, lastAccess)
-						if err != nil {
-							glog.Errorf("Error parsing last access date with service %s: %s", service.Name, err)
-							break
-						}
-						service.LastAccess = &lastAccessTime
-
-					case statusKey:
-						service.Status = &Status{}
-						service.Status.Service = service
-						for _, subNode := range node.Nodes {
-							switch subNode.Key {
-							case statusKey + "/alive":
-								service.Status.Alive = subNode.Value
-							case statusKey + "/current":
-								service.Status.Current = subNode.Value
-							case statusKey + "/expected":
-								service.Status.Expected = subNode.Value
-							}
-						}
-					}
-				}
-
+		} else {
+			for _, service := range sc.GetInstances() {
 				actualEnv := w.Services[serviceName].Get(service.Index)
-
 				if !actualEnv.Equals(service) {
 					w.Services[serviceName].Add(service)
 					if service.Location.Host != "" && service.Location.Port != 0 {
@@ -244,12 +187,11 @@ func (w *Watcher) registerService(node *etcd.Node, action string) {
 						glog.Infof("Registering service %s without location", serviceName)
 					}
 					//Broadcast the updated object
-					w.broadcaster.Write(service)
 					w.broadcaster.Write(w.Services[serviceName])
-
 				}
 			}
 		}
+
 	} else {
 		glog.Errorf("Unable to get information for service %s from etcd", serviceName)
 	}

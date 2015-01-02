@@ -13,6 +13,13 @@ type ServiceCluster struct {
 	lock      sync.RWMutex
 }
 
+func NewServiceCluster(name string) *ServiceCluster {
+	sc := &ServiceCluster{
+		Name: name,
+	}
+	return sc
+}
+
 func (cl *ServiceCluster) Next() (*Service, error) {
 	if cl == nil {
 		return nil, StatusError{}
@@ -79,6 +86,7 @@ func (cl *ServiceCluster) Get(instanceIndex string) *Service {
 }
 
 func (cl *ServiceCluster) Add(service *Service) {
+
 	for index, v := range cl.instances {
 		if v.Index == service.Index {
 			cl.instances[index] = service

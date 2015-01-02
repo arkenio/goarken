@@ -1,5 +1,7 @@
 package goarken
 
+import "github.com/coreos/go-etcd/etcd"
+
 const (
 	STARTING_STATUS   = "starting"
 	STARTED_STATUS    = "started"
@@ -15,6 +17,23 @@ type Status struct {
 	Current  string
 	Expected string
 	Service  *Service
+}
+
+func NewStatus(service *Service, node *etcd.Node) *Status {
+	status := &Status{}
+	statusKey := service.NodeKey + "/status"
+	status.Service = service
+	for _, subNode := range node.Nodes {
+		switch subNode.Key {
+		case statusKey + "/alive":
+			status.Alive = subNode.Value
+		case statusKey + "/current":
+			status.Current = subNode.Value
+		case statusKey + "/expected":
+			status.Expected = subNode.Value
+		}
+	}
+	return status
 }
 
 type StatusError struct {
