@@ -30,7 +30,7 @@ func NewDomain(domainNode *etcd.Node) *Domain {
 
 }
 
-func setDomainPrefix(domainPrefix string) {
+func SetDomainPrefix(domainPrefix string) {
 	domainRegexp = regexp.MustCompile(domainPrefix + "/(.*)(/.*)*")
 }
 

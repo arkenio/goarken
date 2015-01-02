@@ -25,8 +25,8 @@ type Watcher struct {
 //Init Domains and Services.
 func (w *Watcher) Init() {
 	w.broadcaster = NewBroadcaster()
-	setServicePrefix(w.ServicePrefix)
-	setDomainPrefix(w.DomainPrefix)
+	SetServicePrefix(w.ServicePrefix)
+	SetDomainPrefix(w.DomainPrefix)
 	if w.Domains != nil {
 		w.loadPrefix(w.DomainPrefix, w.registerDomain)
 		go w.doWatch(w.DomainPrefix, w.registerDomain)

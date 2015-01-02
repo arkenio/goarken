@@ -220,5 +220,5 @@ func waitFor(iChannel chan interface{}, timeout time.Duration) (interface{}, err
 }
 
 func wait(iChannel chan interface{}) (interface{}, error) {
-	return waitFor(iChannel, time.Duration(3)*time.Second)
+	return waitFor(iChannel, time.Duration(5)*time.Second)
 }

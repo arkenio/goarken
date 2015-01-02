@@ -22,7 +22,7 @@ type Location struct {
 	Port int    `json:"port"`
 }
 
-func setServicePrefix(servicePrefix string) {
+func SetServicePrefix(servicePrefix string) {
 	serviceRegexp = regexp.MustCompile(servicePrefix + "/(.*)(/.*)*")
 }
 
