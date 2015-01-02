@@ -117,9 +117,9 @@ func GetServiceClusterFromNode(clusterNode *etcd.Node) *ServiceCluster {
 	sc := NewServiceCluster("")
 	for _, indexNode := range clusterNode.Nodes {
 		service, err := NewService(indexNode)
-		sc.Name = service.Name
 		if err == nil {
 			sc.Add(service)
+			sc.Name = service.Name
 		}
 	}
 	return sc
