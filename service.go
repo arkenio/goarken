@@ -146,12 +146,12 @@ func (s *Service) Passivate(client *etcd.Client) error {
 
 	responseCurrent, error := client.Set(statusKey+"/current", PASSIVATED_STATUS, 0)
 	if error != nil && responseCurrent == nil {
-		glog.Errorf("Setting status current to 'passivated' has failed for Service "+s.Name+": %s", err)
+		glog.Errorf("Setting status current to 'passivated' has failed for Service "+s.Name+": %s", error)
 	}
 
 	response, error := client.Set(statusKey+"/expected", PASSIVATED_STATUS, 0)
 	if error != nil && response == nil {
-		glog.Errorf("Setting status expected to 'passivated' has failed for Service "+s.Name+": %s", err)
+		glog.Errorf("Setting status expected to 'passivated' has failed for Service "+s.Name+": %s", error)
 	}
 	return nil
 }
