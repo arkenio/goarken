@@ -45,7 +45,8 @@ func (cl *ServiceCluster) Next() (*Service, error) {
 	lastStatus := instance.Status
 
 	if lastStatus == nil && !instance.Location.IsFullyDefined() {
-		glog.Infof("No Status and no location for %s", instance.Name)
+		// Generates too much garbage
+		glog.V(5).Infof("No Status and no location for %s", instance.Name)
 		return nil, StatusError{ERROR_STATUS, lastStatus}
 	}
 

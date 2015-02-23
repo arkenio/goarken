@@ -128,7 +128,7 @@ func GetServiceClusterFromPath(serviceClusterPath string, client *etcd.Client) (
 
 func GetServiceClusterFromNode(clusterNode *etcd.Node) *ServiceCluster {
 
-	sc := NewServiceCluster("")
+	sc := NewServiceCluster(clusterNode.Key)
 	for _, indexNode := range clusterNode.Nodes {
 		service, err := NewService(indexNode)
 		if err == nil {
@@ -136,6 +136,7 @@ func GetServiceClusterFromNode(clusterNode *etcd.Node) *ServiceCluster {
 			sc.Name = service.Name
 		}
 	}
+
 	return sc
 
 }
