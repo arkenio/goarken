@@ -48,6 +48,19 @@ func getEnvForNode(node *etcd.Node) string {
 	return strings.Split(serviceRegexp.FindStringSubmatch(node.Key)[1], "/")[0]
 }
 
+type ServiceConfig struct {
+	Robots string `json:"robots"`
+}
+
+func (config *ServiceConfig) Equals(other *ServiceConfig) bool {
+	if config == nil && other == nil {
+		return true
+	}
+
+	return config != nil && other != nil &&
+		config.Robots == other.Robots
+}
+
 type Service struct {
 	Index      string
 	NodeKey    string
@@ -56,6 +69,7 @@ type Service struct {
 	Name       string
 	Status     *Status
 	LastAccess *time.Time
+	Config     *ServiceConfig
 }
 
 func NewService(serviceNode *etcd.Node) (*Service, error) {
@@ -69,6 +83,7 @@ func NewService(serviceNode *etcd.Node) (*Service, error) {
 
 	service := &Service{}
 	service.Location = &Location{}
+	service.Config = &ServiceConfig{Robots: ""}
 	service.Index = getEnvIndexForNode(serviceNode)
 	service.Name = getEnvForNode(serviceNode)
 	service.NodeKey = serviceNode.Key
@@ -81,6 +96,18 @@ func NewService(serviceNode *etcd.Node) (*Service, error) {
 			if err == nil {
 				service.Location.Host = location.Host
 				service.Location.Port = location.Port
+			}
+
+		case service.NodeKey + "/config":
+			for _, subNode := range node.Nodes {
+				switch subNode.Key {
+				case service.NodeKey + "/config/gogeta":
+					serviceConfig := &ServiceConfig{}
+					err := json.Unmarshal([]byte(subNode.Value), serviceConfig)
+					if err == nil {
+						service.Config = serviceConfig
+					}
+				}
 			}
 
 		case service.NodeKey + "/domain":
@@ -112,7 +139,8 @@ func (service *Service) Equals(other *Service) bool {
 
 	return service != nil && other != nil &&
 		service.Location.Equals(other.Location) &&
-		service.Status.Equals(other.Status)
+		service.Status.Equals(other.Status) &&
+		service.Config.Equals(other.Config)
 }
 
 func (s *Service) StartedSince() *time.Time {
