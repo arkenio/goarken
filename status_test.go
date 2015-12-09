@@ -28,6 +28,23 @@ func Test_status(t *testing.T) {
 
 		})
 
+
+		Convey("When no status is expected and current is started", func() {
+			status.Expected = ""
+			status.Current = "started"
+
+			Convey("The computed status should be warning if alive", func() {
+				status.Alive = "1"
+				So(status.Compute(), ShouldEqual, WARNING_STATUS)
+			})
+
+			Convey("The computed status should be warning if not alive", func() {
+				status.Alive = ""
+				So(status.Compute(), ShouldEqual, WARNING_STATUS)
+			})
+
+		})
+
 		Convey("When started is expected and current is starting", func() {
 			status.Expected = "started"
 			status.Current = "starting"

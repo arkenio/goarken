@@ -8,6 +8,7 @@ const (
 	STOPPING_STATUS   = "stopping"
 	STOPPED_STATUS    = "stopped"
 	ERROR_STATUS      = "error"
+	WARNING_STATUS	  = "warning"
 	NA_STATUS         = "n/a"
 	PASSIVATED_STATUS = "passivated"
 )
@@ -78,10 +79,13 @@ func (s *Status) Compute() string {
 		case STARTED_STATUS:
 			if Alive != "" {
 				if Expected != STARTED_STATUS {
-					return ERROR_STATUS
+					return WARNING_STATUS
 				}
 				return STARTED_STATUS
 			} else {
+				if Expected != STARTED_STATUS {
+					return WARNING_STATUS
+				}
 				return ERROR_STATUS
 			}
 		case STOPPING_STATUS:
