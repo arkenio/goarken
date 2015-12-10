@@ -70,6 +70,12 @@ func (s *Status) Compute() string {
 			} else {
 				return ERROR_STATUS
 			}
+		case PASSIVATED_STATUS:
+			if Expected == PASSIVATED_STATUS {
+				return PASSIVATED_STATUS
+			} else {
+				return WARNING_STATUS
+			}
 		case STARTING_STATUS:
 			if Expected == STARTED_STATUS {
 				return STARTING_STATUS
