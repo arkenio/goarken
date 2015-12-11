@@ -89,7 +89,16 @@ func Test_status(t *testing.T) {
 
 			})
 
+			status.Current = "stopping"
+
+			Convey("Then computed status should be passivated", func() {
+
+				So(status.Compute(), ShouldEqual, PASSIVATED_STATUS)
+
+			})
+
 		})
+
 
 		Convey("When status is nil", func() {
 			var status *Status

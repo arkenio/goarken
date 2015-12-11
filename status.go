@@ -95,8 +95,10 @@ func (s *Status) Compute() string {
 				return ERROR_STATUS
 			}
 		case STOPPING_STATUS:
-			if Expected == STOPPED_STATUS {
+			 if Expected == STOPPED_STATUS {
 				return STOPPED_STATUS
+			} else if Expected == PASSIVATED_STATUS {
+				return PASSIVATED_STATUS
 			} else {
 				return ERROR_STATUS
 			}
