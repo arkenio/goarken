@@ -8,16 +8,16 @@ const (
 	STOPPING_STATUS   = "stopping"
 	STOPPED_STATUS    = "stopped"
 	ERROR_STATUS      = "error"
-	WARNING_STATUS	  = "warning"
+	WARNING_STATUS    = "warning"
 	NA_STATUS         = "n/a"
 	PASSIVATED_STATUS = "passivated"
 )
 
 type Status struct {
-	Alive    string
-	Current  string
-	Expected string
-	Service  *Service
+	Alive    string `json:"alive"`
+	Current  string `json:"current"`
+	Expected string `json:"expected"`
+	Service  *Service `json:"-"`
 }
 
 func NewStatus(service *Service, node *etcd.Node) *Status {
@@ -95,7 +95,7 @@ func (s *Status) Compute() string {
 				return ERROR_STATUS
 			}
 		case STOPPING_STATUS:
-			 if Expected == STOPPED_STATUS {
+			if Expected == STOPPED_STATUS {
 				return STOPPED_STATUS
 			} else if Expected == PASSIVATED_STATUS {
 				return PASSIVATED_STATUS

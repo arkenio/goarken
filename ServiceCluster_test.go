@@ -13,7 +13,7 @@ func Test_cluster(t *testing.T) {
 
 		Convey("When the cluster is initialized", func() {
 			Convey("Then it should be empty", func() {
-				So(len(cluster.instances), ShouldEqual, 0)
+				So(len(cluster.Instances), ShouldEqual, 0)
 
 			})
 		})
@@ -23,7 +23,7 @@ func Test_cluster(t *testing.T) {
 			Convey("Then it can't get a next service", func() {
 				service, err := cluster.Next()
 
-				So(len(cluster.instances), ShouldEqual, 1)
+				So(len(cluster.Instances), ShouldEqual, 1)
 				So(service, ShouldBeNil)
 				So(err, ShouldNotBeNil)
 			})
@@ -34,7 +34,7 @@ func Test_cluster(t *testing.T) {
 			Convey("Then it can get a next service", func() {
 				service, err := cluster.Next()
 
-				So(len(cluster.instances), ShouldEqual, 1)
+				So(len(cluster.Instances), ShouldEqual, 1)
 				So(service, ShouldNotBeNil)
 				So(err, ShouldBeNil)
 			})
@@ -68,7 +68,7 @@ func Test_cluster(t *testing.T) {
 			})
 
 			Convey("Then it should never loadbalance on an inactive service", func() {
-				for i := 0; i < len(cluster.instances); i++ {
+				for i := 0; i < len(cluster.Instances); i++ {
 					service, err := cluster.Next()
 					So(service, ShouldNotBeNil)
 					So(err, ShouldBeNil)
@@ -94,12 +94,12 @@ func Test_cluster(t *testing.T) {
 			cluster.Add(getService("2", "nxio-0001", false))
 			cluster.Add(getService("3", "nxio-0001", true))
 
-			initSize := len(cluster.instances)
+			initSize := len(cluster.Instances)
 
 			cluster.Remove("2")
 
 			Convey("Then it should containe one less instance", func() {
-				So(len(cluster.instances), ShouldEqual, initSize-1)
+				So(len(cluster.Instances), ShouldEqual, initSize-1)
 
 			})
 		})

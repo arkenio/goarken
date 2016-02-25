@@ -7,8 +7,8 @@ import (
 )
 
 type ServiceCluster struct {
-	Name      string
-	instances []*Service
+	Name      string     `json:"name"`
+	Instances []*Service `json:"instances"`
 	lastIndex int
 	lock      sync.RWMutex
 }
@@ -26,15 +26,15 @@ func (cl *ServiceCluster) Next() (*Service, error) {
 	}
 	cl.lock.RLock()
 	defer cl.lock.RUnlock()
-	if len(cl.instances) == 0 {
+	if len(cl.Instances) == 0 {
 		return nil, errors.New("no alive instance found")
 	}
 	var instance *Service
-	for tries := 0; tries < len(cl.instances); tries++ {
-		index := (cl.lastIndex + 1) % len(cl.instances)
+	for tries := 0; tries < len(cl.Instances); tries++ {
+		index := (cl.lastIndex + 1) % len(cl.Instances)
 		cl.lastIndex = index
 
-		instance = cl.instances[index]
+		instance = cl.Instances[index]
 		glog.V(5).Infof("Checking instance %d Status : %s", index, instance.Status.Compute())
 		if instance.Status.Compute() == STARTED_STATUS && instance.Location.IsFullyDefined() {
 			return instance, nil
@@ -66,21 +66,21 @@ func (cl *ServiceCluster) Next() (*Service, error) {
 func (cl *ServiceCluster) Remove(instanceIndex string) {
 
 	match := -1
-	for k, v := range cl.instances {
+	for k, v := range cl.Instances {
 		if v.Index == instanceIndex {
 			match = k
 		}
 	}
 
-	cl.instances = append(cl.instances[:match], cl.instances[match+1:]...)
+	cl.Instances = append(cl.Instances[:match], cl.Instances[match+1:]...)
 	cl.Dump("remove")
 }
 
 // Get an service by its key (index). Returns nil if not found.
 func (cl *ServiceCluster) Get(instanceIndex string) *Service {
-	for i, v := range cl.instances {
+	for i, v := range cl.Instances {
 		if v.Index == instanceIndex {
-			return cl.instances[i]
+			return cl.Instances[i]
 		}
 	}
 	return nil
@@ -88,22 +88,22 @@ func (cl *ServiceCluster) Get(instanceIndex string) *Service {
 
 func (cl *ServiceCluster) Add(service *Service) {
 
-	for index, v := range cl.instances {
+	for index, v := range cl.Instances {
 		if v.Index == service.Index {
-			cl.instances[index] = service
+			cl.Instances[index] = service
 			return
 		}
 	}
 
-	cl.instances = append(cl.instances, service)
+	cl.Instances = append(cl.Instances, service)
 }
 
 func (cl *ServiceCluster) Dump(action string) {
-	for _, v := range cl.instances {
+	for _, v := range cl.Instances {
 		glog.Infof("Dump after %s %s -> %s:%d", action, v.Index, v.Location.Host, v.Location.Port)
 	}
 }
 
 func (cl *ServiceCluster) GetInstances() []*Service {
-	return cl.instances
+	return cl.Instances
 }

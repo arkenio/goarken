@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"github.com/Sirupsen/logrus"
+	"fmt"
 )
 
 var (
@@ -62,14 +64,15 @@ func (config *ServiceConfig) Equals(other *ServiceConfig) bool {
 }
 
 type Service struct {
-	Index      string
-	NodeKey    string
-	Location   *Location
-	Domain     string
-	Name       string
-	Status     *Status
-	LastAccess *time.Time
-	Config     *ServiceConfig
+	Index      string         `json:"index"`
+	NodeKey    string         `json:"nodeKey"`
+	Location   *Location      `json:"location"`
+	Domain     string         `json:"domain"`
+	Name       string         `json:"name"`
+	Status     *Status        `json:"status"`
+	LastAccess *time.Time     `json:"lastAccess"`
+	Config     *ServiceConfig `json:"config"`
+	log        *logrus.Logger
 }
 
 func NewService(serviceNode *etcd.Node) (*Service, error) {
@@ -82,6 +85,7 @@ func NewService(serviceNode *etcd.Node) (*Service, error) {
 	}
 
 	service := &Service{}
+	service.log = logrus.New()
 	service.Location = &Location{}
 	service.Config = &ServiceConfig{Robots: ""}
 	service.Index = getEnvIndexForNode(serviceNode)
@@ -157,14 +161,18 @@ func (s *Service) StartedSince() *time.Time {
 }
 
 func (s *Service) Start(client *etcd.Client) error {
+	s.log.Info(fmt.Sprintf("Starting service %s",s.Name))
 	return s.fleetcmd("start", client)
+
 }
 
 func (s *Service) Stop(client *etcd.Client) error {
+	s.log.Info(fmt.Sprintf("Stopping service %s",s.Name))
 	return s.fleetcmd("destroy", client)
 }
 
 func (s *Service) Passivate(client *etcd.Client) error {
+	s.log.Info(fmt.Sprintf("Passivating service %s",s.Name))
 	err := s.fleetcmd("destroy", client)
 	if err != nil {
 		return err
@@ -187,6 +195,11 @@ func (s *Service) Passivate(client *etcd.Client) error {
 func (s *Service) fleetcmd(command string, client *etcd.Client) error {
 	//TODO Use fleet's REST API
 	etcdAddress := client.GetCluster()[0]
+
+
+
+
+
 	cmd := exec.Command("/usr/bin/fleetctl", "--endpoint="+etcdAddress, command, s.UnitName())
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout

@@ -79,7 +79,7 @@ func Test_status(t *testing.T) {
 
 		})
 
-		Convey("When current is passivated", func() {
+		Convey("When current is stopped", func() {
 			status.Expected = "passivated"
 			status.Current = "stopped"
 
@@ -88,10 +88,13 @@ func Test_status(t *testing.T) {
 				So(status.Compute(), ShouldEqual, PASSIVATED_STATUS)
 
 			})
+		})
 
+		Convey("When current is stopping", func() {
+			status.Expected = "passivated"
 			status.Current = "stopping"
 
-			Convey("Then computed status should be passivated", func() {
+			Convey("Then computed status should also be passivated", func() {
 
 				So(status.Compute(), ShouldEqual, PASSIVATED_STATUS)
 
