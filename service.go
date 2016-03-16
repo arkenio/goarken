@@ -5,14 +5,11 @@ import (
 	"errors"
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/golang/glog"
-	"os"
-	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 	"github.com/Sirupsen/logrus"
-	"fmt"
 )
 
 var (
@@ -160,49 +157,3 @@ func (s *Service) StartedSince() *time.Time {
 	}
 }
 
-func (s *Service) Start(client *etcd.Client) error {
-	s.log.Info(fmt.Sprintf("Starting service %s",s.Name))
-	return s.fleetcmd("start", client)
-
-}
-
-func (s *Service) Stop(client *etcd.Client) error {
-	s.log.Info(fmt.Sprintf("Stopping service %s",s.Name))
-	return s.fleetcmd("destroy", client)
-}
-
-func (s *Service) Passivate(client *etcd.Client) error {
-	s.log.Info(fmt.Sprintf("Passivating service %s",s.Name))
-	err := s.fleetcmd("destroy", client)
-	if err != nil {
-		return err
-	}
-
-	statusKey := s.NodeKey + "/status"
-
-	responseCurrent, error := client.Set(statusKey+"/current", PASSIVATED_STATUS, 0)
-	if error != nil && responseCurrent == nil {
-		glog.Errorf("Setting status current to 'passivated' has failed for Service "+s.Name+": %s", error)
-	}
-
-	response, error := client.Set(statusKey+"/expected", PASSIVATED_STATUS, 0)
-	if error != nil && response == nil {
-		glog.Errorf("Setting status expected to 'passivated' has failed for Service "+s.Name+": %s", error)
-	}
-	return nil
-}
-
-func (s *Service) fleetcmd(command string, client *etcd.Client) error {
-	//TODO Use fleet's REST API
-	etcdAddress := client.GetCluster()[0]
-
-
-
-
-
-	cmd := exec.Command("/usr/bin/fleetctl", "--endpoint="+etcdAddress, command, s.UnitName())
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
