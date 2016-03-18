@@ -1,15 +1,16 @@
-package goarken
+package model
 
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/Sirupsen/logrus"
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/golang/glog"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
-	"github.com/Sirupsen/logrus"
 )
 
 var (
@@ -48,8 +49,16 @@ func getEnvForNode(node *etcd.Node) string {
 }
 
 type ServiceConfig struct {
-	Robots string `json:"robots"`
+	Robots      string `json:"robots"`
+	Environment map[string]interface{}
+	RancherInfo RancherInfoType
 }
+
+
+type RancherInfoType struct {
+	ServiceId	string
+}
+
 
 func (config *ServiceConfig) Equals(other *ServiceConfig) bool {
 	if config == nil && other == nil {
@@ -129,6 +138,74 @@ func NewService(serviceNode *etcd.Node) (*Service, error) {
 	return service, nil
 }
 
+func (s *Service) Persist(client *etcd.Client) error {
+	if s.NodeKey != "" {
+
+		resp, err := client.Get(s.NodeKey, false, true)
+
+		oldService, err := NewService(resp.Node)
+		if err != nil {
+			return err
+		} else {
+			if oldService.Status.Expected != s.Status.Expected {
+				client.Set(fmt.Sprintf("%sstatus/expected", s.Status.Expected), "stopped", 0)
+			}
+
+			if oldService.Status.Current != s.Status.Current{
+				client.Set(fmt.Sprintf("%sstatus/current", s.Status.Expected), "stopped", 0)
+			}
+
+			bytes, err := json.Marshal(s.Config)
+			if err != nil {
+				_, err = client.Set(fmt.Sprintf("%sconfig/gogeta", s.NodeKey), string(bytes), 0)
+			}
+
+
+			client.Set(fmt.Sprintf("%sstatus/expected", s.Status.Expected), "stopped", 0)
+
+
+			if oldService.Domain != s.Domain {
+				client.Set(fmt.Sprintf("%sdomain", s.NodeKey), s.Domain, 0)
+			}
+		}
+
+	} else {
+		s.computeNodeKey()
+
+		_, err := client.Create(fmt.Sprintf("%sstatus/expected", s.NodeKey), s.Status.Expected, 0)
+		if err == nil {
+			_, err = client.Create(fmt.Sprintf("%sstatus/current", s.NodeKey), s.Status.Expected, 0)
+		}
+		if err == nil {
+			bytes, err := json.Marshal(s.Config)
+			if err != nil {
+				_, err = client.Create(fmt.Sprintf("%sconfig/gogeta", s.NodeKey), string(bytes), 0)
+			}
+		}
+		if err == nil {
+			_, err = client.Create(fmt.Sprintf("%sdomain", s.NodeKey), s.Domain, 0)
+		}
+
+		if err != nil {
+			//Rollback creation
+			s.Remove(client)
+			return err
+		}
+
+	}
+	return nil
+
+}
+
+func (s *Service) Remove(client *etcd.Client) {
+	client.Delete(s.NodeKey, true)
+	s.NodeKey = ""
+}
+
+//func (s *Service) computeNodeKey() {
+//	s.NodeKey = fmt.Sprintf("/%s/%s/%s/", model.servicePrefix, s.Name, s.Index)
+//}
+
 func (s *Service) UnitName() string {
 	return "nxio@" + strings.Split(s.Name, "_")[1] + ".service"
 }
@@ -156,4 +233,3 @@ func (s *Service) StartedSince() *time.Time {
 		return nil
 	}
 }
-

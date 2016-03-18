@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/coreos/go-etcd/etcd"
+	. "github.com/arkenio/goarken/model"
 	"github.com/golang/glog"
 	"time"
 )
@@ -12,28 +13,44 @@ const (
 	TIME_FORMAT = "2006-01-02 15:04:05"
 )
 
-// A Watcher loads and watch the etcd hierarchy for Domains and Services.
+// A Watcher loads and watch the etcd hierarchy for Domains and Services and
+// updates the model according to etcd updates.
 type Watcher struct {
-	Client        *etcd.Client
-	DomainPrefix  string
-	ServicePrefix string
-	Domains       map[string]*Domain
-	Services      map[string]*ServiceCluster
+
+	client        *etcd.Client
 	broadcaster   *Broadcaster
+	servicePrefix string
+	domainPrefix  string
 }
+
+func NewWatcher(client *etcd.Client, model *Model, servicePrefix string, domainPrefix string) *Watcher {
+
+	return &Watcher{
+		client:        client,
+		broadcaster:   NewBroadcaster(),
+		servicePrefix: servicePrefix,
+		domainPrefix:  domainPrefix,
+	}
+}
+
+func (w *Watcher) LoadAll() {
+
+}
+
 
 //Init Domains and Services.
 func (w *Watcher) Init() {
-	w.broadcaster = NewBroadcaster()
-	SetServicePrefix(w.ServicePrefix)
-	SetDomainPrefix(w.DomainPrefix)
-	if w.Domains != nil {
-		w.loadPrefix(w.DomainPrefix, w.registerDomain)
-		go w.doWatch(w.DomainPrefix, w.registerDomain)
+	if w.model == nil {
+		panic("GoArken Model must be initialiazed before using the watcher")
 	}
-	if w.Services != nil {
-		w.loadPrefix(w.ServicePrefix, w.registerService)
-		go w.doWatch(w.ServicePrefix, w.registerService)
+	w.broadcaster = NewBroadcaster()
+	if w.model.Domains != nil {
+		w.loadPrefix(w.domainPrefix, w.registerDomain)
+		go w.doWatch(w.domainPrefix, w.registerDomain)
+	}
+	if w.model.Services != nil {
+		w.loadPrefix(w.servicePrefix, w.registerService)
+		go w.doWatch(w.servicePrefix, w.registerService)
 	}
 
 }
@@ -53,11 +70,11 @@ func (w *Watcher) doWatch(etcdDir string, registerFunc func(*etcd.Node, string))
 		updateChannel := make(chan *etcd.Response, 10)
 		go w.watch(updateChannel, stop, etcdDir, registerFunc)
 
-		_, err := w.Client.Watch(etcdDir, (uint64)(0), true, updateChannel, nil)
+		_, err := w.client.Watch(etcdDir, (uint64)(0), true, updateChannel, nil)
 
 		//If we are here, this means etcd watch ended in an error
 		stop <- struct{}{}
-		w.Client.CloseCURL()
+		w.client.CloseCURL()
 		glog.Warningf("Error when watching %s : %v", etcdDir, err)
 		glog.Warningf("Waiting 1 second and relaunch watch")
 		time.Sleep(time.Second)
@@ -67,7 +84,7 @@ func (w *Watcher) doWatch(etcdDir string, registerFunc func(*etcd.Node, string))
 }
 
 func (w *Watcher) loadPrefix(etcDir string, registerFunc func(*etcd.Node, string)) {
-	response, err := w.Client.Get(etcDir, true, true)
+	response, err := w.client.Get(etcDir, true, true)
 	if err == nil {
 		for _, serviceNode := range response.Node.Nodes {
 			registerFunc(serviceNode, response.Action)
@@ -94,12 +111,12 @@ func (w *Watcher) watch(updateChannel chan *etcd.Response, stop chan struct{}, k
 }
 
 func (w *Watcher) RemoveDomain(key string) {
-	delete(w.Domains, key)
+	delete(w.model.Domains, key)
 
 }
 
 func (w *Watcher) RemoveEnv(serviceName string) {
-	delete(w.Services, serviceName)
+	delete(w.model.Services, serviceName)
 }
 
 func GetDomainFromPath(domainPath string, client *etcd.Client) (*Domain, error) {
@@ -150,16 +167,16 @@ func (w *Watcher) registerDomain(node *etcd.Node, action string) {
 		return
 	}
 
-	domainKey := w.DomainPrefix + "/" + domainName
-	response, err := w.Client.Get(domainKey, true, false)
+	domainKey := w.domainPrefix + "/" + domainName
+	response, err := w.client.Get(domainKey, true, false)
 
 	if err == nil {
 		domain := NewDomain(response.Node)
 
-		actualDomain := w.Domains[domainName]
+		actualDomain := w.model.Domains[domainName]
 
 		if domain.Typ != "" && domain.Value != "" && !domain.Equals(actualDomain) {
-			w.Domains[domainName] = domain
+			w.model.Domains[domainName] = domain
 			glog.Infof("Registered domain %s with (%s) %s", domainName, domain.Typ, domain.Value)
 
 			//Broadcast the updated domain
@@ -175,34 +192,34 @@ func (w *Watcher) registerService(node *etcd.Node, action string) {
 
 	serviceName := getEnvForNode(node)
 
-	if action == "delete" && node.Key == w.ServicePrefix+"/"+serviceName {
+	if action == "delete" && node.Key == w.servicePrefix+"/"+serviceName {
 		w.RemoveEnv(serviceName)
 		return
 	}
 
 	// Get service's root node instead of changed node.
-	response, err := w.Client.Get(w.ServicePrefix+"/"+serviceName, true, true)
+	response, err := w.client.Get(w.servicePrefix+"/"+serviceName, true, true)
 
 	if err == nil {
 
 		sc := GetServiceClusterFromNode(response.Node)
 
-		if w.Services[sc.Name] == nil {
-			w.Services[sc.Name] = sc
-			w.broadcaster.Write(w.Services[serviceName])
+		if w.model.Services[sc.Name] == nil {
+			w.model.Services[sc.Name] = sc
+			w.broadcaster.Write(w.model.Services[serviceName])
 
 		} else {
 			for _, service := range sc.GetInstances() {
-				actualEnv := w.Services[serviceName].Get(service.Index)
+				actualEnv := w.model.Services[serviceName].Get(service.Index)
 				if !actualEnv.Equals(service) {
-					w.Services[serviceName].Add(service)
+					w.model.Services[serviceName].Add(service)
 					if service.Location.Host != "" && service.Location.Port != 0 {
 						glog.Infof("Registering service %s with location : http://%s:%d/", serviceName, service.Location.Host, service.Location.Port)
 					} else {
 						glog.Infof("Registering service %s without location", serviceName)
 					}
 					//Broadcast the updated object
-					w.broadcaster.Write(w.Services[serviceName])
+					w.broadcaster.Write(w.model.Services[serviceName])
 				}
 			}
 		}

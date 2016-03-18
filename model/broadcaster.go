@@ -1,4 +1,4 @@
-package goarken
+package model
 
 type Broadcaster struct {
 	listeners []chan interface{}

@@ -1,4 +1,4 @@
-package goarken
+package model
 
 import (
 	"errors"

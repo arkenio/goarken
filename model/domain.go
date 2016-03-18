@@ -1,4 +1,4 @@
-package goarken
+package model
 
 import (
 	"github.com/coreos/go-etcd/etcd"
@@ -7,6 +7,7 @@ import (
 )
 
 type Domain struct {
+	Name string
 	Typ   string
 	Value string
 }
@@ -18,6 +19,8 @@ var (
 func NewDomain(domainNode *etcd.Node) *Domain {
 	domain := &Domain{}
 	domainKey := domainNode.Key
+
+	domain.Name = getDomainForNode(domainNode)
 	for _, node := range domainNode.Nodes {
 		switch node.Key {
 		case domainKey + "/type":

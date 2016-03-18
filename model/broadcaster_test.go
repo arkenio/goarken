@@ -1,4 +1,4 @@
-package goarken
+package model
 
 import (
 	. "github.com/smartystreets/goconvey/convey"

@@ -25,7 +25,7 @@ func NewFleetServiceDriver(client *etcd.Client) *FleetServiceDriver {
 	return &FleetServiceDriver{client}
 }
 
-func (f *FleetServiceDriver) Create(s *Service) (*Service,error) {
+func (f *FleetServiceDriver) Create(s *Service, startOnCreate bool) (*Service,error) {
 	return nil, errors.New("Not implemented")
 }
 
