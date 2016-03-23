@@ -1,6 +1,5 @@
 package model
 
-import "github.com/coreos/go-etcd/etcd"
 
 const (
 	STARTING_STATUS   = "starting"
@@ -20,21 +19,13 @@ type Status struct {
 	Service  *Service `json:"-"`
 }
 
-func NewStatus(service *Service, node *etcd.Node) *Status {
-	status := &Status{}
-	statusKey := service.NodeKey + "/status"
-	status.Service = service
-	for _, subNode := range node.Nodes {
-		switch subNode.Key {
-		case statusKey + "/alive":
-			status.Alive = subNode.Value
-		case statusKey + "/current":
-			status.Current = subNode.Value
-		case statusKey + "/expected":
-			status.Expected = subNode.Value
-		}
+
+func NewInitialStatus(initialStatus string, service *Service) *Status {
+	return &Status{
+		Current: initialStatus,
+		Expected: initialStatus,
+		Service: service,
 	}
-	return status
 }
 
 type StatusError struct {

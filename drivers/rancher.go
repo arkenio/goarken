@@ -1,7 +1,7 @@
 package drivers
 
 import (
-	. "github.com/arkenio/goarken"
+	. "github.com/arkenio/goarken/model"
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/rancher/go-rancher/client"
 	"io/ioutil"
@@ -34,10 +34,7 @@ func NewRancherServiceDriver(etcdClient *etcd.Client, rancherHost string, ranche
 }
 
 
-func (r *RancherServiceDriver) Create(s *Service, startOnCreate bool) (*Service, error) {
-
-	//Create etcd entries
-	s.Persist(r.etcdClient)
+func (r *RancherServiceDriver) Create(s *Service, startOnCreate bool) (interface{}, error) {
 
 	//Start rancher environment
 	env := &client.Environment{}
@@ -50,11 +47,8 @@ func (r *RancherServiceDriver) Create(s *Service, startOnCreate bool) (*Service,
 
 	check(err)
 
-	s.Config.RancherInfo.ServiceId = env.Id
-	s.Persist(r.etcdClient)
+	return &RancherInfoType{ServiceId:env.Id}, nil
 
-
-	return s, nil
 }
 
 
@@ -69,7 +63,7 @@ func fillCompose(env *client.Environment) {
 
 }
 
-func (r *RancherServiceDriver) Start(s *Service) (*Service, error) {
+func (r *RancherServiceDriver) Start(s *Service) (interface{}, error) {
 	rancherId := s.Config.RancherInfo.ServiceId
 	env, err := r.rancherClient.Environment.ById(rancherId)
 	check(err)
@@ -77,7 +71,7 @@ func (r *RancherServiceDriver) Start(s *Service) (*Service, error) {
 	return s, err
 }
 
-func (r *RancherServiceDriver) Stop(s *Service) (*Service, error) {
+func (r *RancherServiceDriver) Stop(s *Service) (interface{}, error) {
 	rancherId := s.Config.RancherInfo.ServiceId
 	env, err := r.rancherClient.Environment.ById(rancherId)
 	check(err)
@@ -101,4 +95,9 @@ func check(e error) {
 		log.Info("error: ", e.Error())
 		panic(e)
 	}
+}
+
+
+func (r *RancherServiceDriver) Listen() chan ModelEvent {
+	return nil
 }

@@ -4,7 +4,7 @@ package drivers
 
 import (
 	"github.com/coreos/go-etcd/etcd"
-	. "github.com/arkenio/goarken"
+	. "github.com/arkenio/goarken/model"
 	"os/exec"
 	"os"
 	"strings"
@@ -25,23 +25,23 @@ func NewFleetServiceDriver(client *etcd.Client) *FleetServiceDriver {
 	return &FleetServiceDriver{client}
 }
 
-func (f *FleetServiceDriver) Create(s *Service, startOnCreate bool) (*Service,error) {
+func (f *FleetServiceDriver) Create(s *Service, startOnCreate bool) (interface{},error) {
 	return nil, errors.New("Not implemented")
 }
 
 
-func (f *FleetServiceDriver) Start(s *Service) (*Service,error) {
+func (f *FleetServiceDriver) Start(s *Service) (interface{},error) {
 	err := f.fleetcmd(s, "start", f.client)
 	return s,err
 }
 
-func (f *FleetServiceDriver) Stop(s *Service) (*Service,error) {
+func (f *FleetServiceDriver) Stop(s *Service) (interface{},error) {
 	err := f.fleetcmd(s, "stop", f.client)
 	return s,err
 }
 
 
-func (f *FleetServiceDriver) Passivate(s *Service) (*Service,error) {
+func (f *FleetServiceDriver) Passivate(s *Service) (interface{},error) {
 	glog.Info(fmt.Sprintf("Passivating service %s",s.Name))
 	err := f.fleetcmd(s, "destroy", f.client)
 	if err != nil {
@@ -83,3 +83,12 @@ func (f *FleetServiceDriver) fleetcmd(s *Service, command string, client *etcd.C
 	return cmd.Run()
 }
 
+
+func UnitName(s *Service) string {
+	return "nxio@" + strings.Split(s.Name, "_")[1] + ".service"
+}
+
+
+func (f *FleetServiceDriver) Listen() chan ModelEvent {
+	return nil
+}

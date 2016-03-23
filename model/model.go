@@ -15,6 +15,10 @@ type ModelEvent struct {
 	model     interface{}
 }
 
+func NewModelEvent(eventType string, model interface{}) *ModelEvent {
+	return &ModelEvent{eventType, model}
+}
+
 func NewArkenModel(domainPrefix string, servicePrefix string, sDriver ServiceDriver, pDriver PersistenceDriver) *Model {
 	if pDriver == nil {
 		panic("Can't use a nil persistence Driver")
@@ -47,7 +51,38 @@ func (m *Model) Init() {
 
 }
 
-func (m *Model) handleModelEventOn(eventStream chan ModelEvent) {
+
+func (m *Model) Create(s *Service, startOnCreate bool) (*Service, error) {
+
+	m.persistenceDriver.PersistService(s)
+	res, err  := m.serviceDriver.Create(s, startOnCreate)
+
+
+	if(err != nil) {
+		return nil, err;
+	}
+
+
+
+	if info, ok := res.(RancherInfoType); ok {
+		s.Config.RancherInfo = info
+	}
+
+	if info, ok:= res.(FleetInfoType); ok {
+		s.Config.FleetInfo = info
+	}
+
+
+
+
+	m.persistenceDriver.PersistService(s)
+
+
+	return s, nil
+}
+
+
+func (m *Model) handleModelEventOn(eventStream chan *ModelEvent) {
 	for {
 		select {
 		case event := <-eventStream:
@@ -55,9 +90,9 @@ func (m *Model) handleModelEventOn(eventStream chan ModelEvent) {
 			case "create":
 			case "update":
 				if sc, ok := event.model.(ServiceCluster); ok {
-					m.Services[sc.Name] = sc
+					m.Services[sc.Name] = &sc
 				} else if domain, ok := event.model.(Domain); ok {
-					m.Domains[domain.Name] = domain
+					m.Domains[domain.Name] = &domain
 				}
 			case "delete":
 				if sc, ok := event.model.(ServiceCluster); ok {

@@ -1,29 +1,13 @@
 package model
 
 import (
-	"encoding/json"
-	"errors"
-	"fmt"
 	"github.com/Sirupsen/logrus"
-	"github.com/coreos/go-etcd/etcd"
-	"github.com/golang/glog"
-	"regexp"
-	"strconv"
-	"strings"
 	"time"
-)
-
-var (
-	serviceRegexp = regexp.MustCompile("/services/(.*)(/.*)*")
 )
 
 type Location struct {
 	Host string `json:"host"`
 	Port int    `json:"port"`
-}
-
-func SetServicePrefix(servicePrefix string) {
-	serviceRegexp = regexp.MustCompile(servicePrefix + "/(.*)(/.*)*")
 }
 
 func (s *Location) Equals(other *Location) bool {
@@ -40,25 +24,20 @@ func (s *Location) IsFullyDefined() bool {
 	return s.Host != "" && s.Port != 0
 }
 
-func getEnvIndexForNode(node *etcd.Node) string {
-	return strings.Split(serviceRegexp.FindStringSubmatch(node.Key)[1], "/")[1]
-}
-
-func getEnvForNode(node *etcd.Node) string {
-	return strings.Split(serviceRegexp.FindStringSubmatch(node.Key)[1], "/")[0]
-}
-
 type ServiceConfig struct {
 	Robots      string `json:"robots"`
 	Environment map[string]interface{}
-	RancherInfo RancherInfoType
+	RancherInfo RancherInfoType `json:"rancherInfo,omitempty"`
+	FleetInfo   FleetInfoType   `json:"fleetInfo,omitempty"`
 }
-
 
 type RancherInfoType struct {
-	ServiceId	string
+	ServiceId string
 }
 
+type FleetInfoType struct {
+	UnitName string
+}
 
 func (config *ServiceConfig) Equals(other *ServiceConfig) bool {
 	if config == nil && other == nil {
@@ -81,133 +60,15 @@ type Service struct {
 	log        *logrus.Logger
 }
 
-func NewService(serviceNode *etcd.Node) (*Service, error) {
+func (s *Service) Init() *Service {
 
-	serviceIndex := getEnvIndexForNode(serviceNode)
+	s.Index = "1"
 
-	if _, err := strconv.Atoi(serviceIndex); err != nil {
-		// Don't handle node that are not integer (ie config node)
-		return nil, errors.New("Not a service index node")
-	}
+	status := NewInitialStatus(STOPPED_STATUS, s)
+	s.Status = status
 
-	service := &Service{}
-	service.log = logrus.New()
-	service.Location = &Location{}
-	service.Config = &ServiceConfig{Robots: ""}
-	service.Index = getEnvIndexForNode(serviceNode)
-	service.Name = getEnvForNode(serviceNode)
-	service.NodeKey = serviceNode.Key
+	return s
 
-	for _, node := range serviceNode.Nodes {
-		switch node.Key {
-		case service.NodeKey + "/location":
-			location := &Location{}
-			err := json.Unmarshal([]byte(node.Value), location)
-			if err == nil {
-				service.Location.Host = location.Host
-				service.Location.Port = location.Port
-			}
-
-		case service.NodeKey + "/config":
-			for _, subNode := range node.Nodes {
-				switch subNode.Key {
-				case service.NodeKey + "/config/gogeta":
-					serviceConfig := &ServiceConfig{}
-					err := json.Unmarshal([]byte(subNode.Value), serviceConfig)
-					if err == nil {
-						service.Config = serviceConfig
-					}
-				}
-			}
-
-		case service.NodeKey + "/domain":
-			service.Domain = node.Value
-		case service.NodeKey + "/lastAccess":
-			lastAccess := node.Value
-			lastAccessTime, err := time.Parse(TIME_FORMAT, lastAccess)
-			if err != nil {
-				glog.Errorf("Error parsing last access date with service %s: %s", service.Name, err)
-				break
-			}
-			service.LastAccess = &lastAccessTime
-
-		case service.NodeKey + "/status":
-			service.Status = NewStatus(service, node)
-		}
-	}
-	return service, nil
-}
-
-func (s *Service) Persist(client *etcd.Client) error {
-	if s.NodeKey != "" {
-
-		resp, err := client.Get(s.NodeKey, false, true)
-
-		oldService, err := NewService(resp.Node)
-		if err != nil {
-			return err
-		} else {
-			if oldService.Status.Expected != s.Status.Expected {
-				client.Set(fmt.Sprintf("%sstatus/expected", s.Status.Expected), "stopped", 0)
-			}
-
-			if oldService.Status.Current != s.Status.Current{
-				client.Set(fmt.Sprintf("%sstatus/current", s.Status.Expected), "stopped", 0)
-			}
-
-			bytes, err := json.Marshal(s.Config)
-			if err != nil {
-				_, err = client.Set(fmt.Sprintf("%sconfig/gogeta", s.NodeKey), string(bytes), 0)
-			}
-
-
-			client.Set(fmt.Sprintf("%sstatus/expected", s.Status.Expected), "stopped", 0)
-
-
-			if oldService.Domain != s.Domain {
-				client.Set(fmt.Sprintf("%sdomain", s.NodeKey), s.Domain, 0)
-			}
-		}
-
-	} else {
-		s.computeNodeKey()
-
-		_, err := client.Create(fmt.Sprintf("%sstatus/expected", s.NodeKey), s.Status.Expected, 0)
-		if err == nil {
-			_, err = client.Create(fmt.Sprintf("%sstatus/current", s.NodeKey), s.Status.Expected, 0)
-		}
-		if err == nil {
-			bytes, err := json.Marshal(s.Config)
-			if err != nil {
-				_, err = client.Create(fmt.Sprintf("%sconfig/gogeta", s.NodeKey), string(bytes), 0)
-			}
-		}
-		if err == nil {
-			_, err = client.Create(fmt.Sprintf("%sdomain", s.NodeKey), s.Domain, 0)
-		}
-
-		if err != nil {
-			//Rollback creation
-			s.Remove(client)
-			return err
-		}
-
-	}
-	return nil
-
-}
-
-func (s *Service) Remove(client *etcd.Client) {
-	client.Delete(s.NodeKey, true)
-	s.NodeKey = ""
-}
-
-//func (s *Service) computeNodeKey() {
-//	s.NodeKey = fmt.Sprintf("/%s/%s/%s/", model.servicePrefix, s.Name, s.Index)
-//}
-
-func (s *Service) UnitName() string {
-	return "nxio@" + strings.Split(s.Name, "_")[1] + ".service"
 }
 
 func (service *Service) Equals(other *Service) bool {
