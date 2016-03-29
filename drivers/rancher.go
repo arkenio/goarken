@@ -98,6 +98,10 @@ func check(e error) {
 }
 
 
-func (r *RancherServiceDriver) Listen() chan ModelEvent {
+func (r *RancherServiceDriver) Listen() chan *ModelEvent {
 	return nil
+}
+
+func (w *RancherServiceDriver) StopDriver() {
+
 }

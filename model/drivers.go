@@ -10,6 +10,7 @@ type ServiceDriver interface {
 	Destroy(s *Service) error
 
 	Listen() chan *ModelEvent
+
 }
 
 
@@ -25,6 +26,8 @@ type PersistenceDriver interface  {
 	DestroyDomain(*Domain) error
 
 	Listen() chan *ModelEvent
+
+
 
 }
 

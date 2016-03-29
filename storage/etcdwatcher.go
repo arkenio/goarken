@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+//	"github.com/Sirupsen/logrus"
 )
 
 const (
@@ -62,25 +64,11 @@ func (w *Watcher) Init() {
 }
 
 func (w *Watcher) Listen() chan *model.ModelEvent {
-	eventChannel := make(chan *model.ModelEvent)
-	go func() {
-		events := w.broadcaster.Listen()
+	result := make(chan *model.ModelEvent)
 
-		for {
-			select {
-			case event := <-events:
+	FromInterfaceChannel(w.broadcaster.Listen(), result)
+	return result
 
-				if evt, ok := event.(*model.ModelEvent); ok {
-
-					eventChannel <- evt
-				} else {
-					panic(event)
-				}
-			}
-		}
-	}()
-
-	return eventChannel
 }
 
 // Loads and watch an etcd directory to register objects like Domains, Services
@@ -134,17 +122,17 @@ func (w *Watcher) watch(updateChannel chan *etcd.Response, stop chan struct{}, k
 	}
 }
 
-func GetDomainFromPath(domainPath string, client *etcd.Client) (*Domain, error) {
-	// Get service's root node instead of changed node.
-	response, err := client.Get(domainPath, true, true)
-	if err != nil {
-		return nil, errors.New(fmt.Sprintf("Unable to get information for service %s from etcd", domainPath))
-	}
+//func GetDomainFromPath(domainPath string, client *etcd.Client) (*Domain, error) {
+//	// Get service's root node instead of changed node.
+//	response, err := client.Get(domainPath, true, true)
+//	if err != nil {
+//		return nil, errors.New(fmt.Sprintf("Unable to get information for service %s from etcd", domainPath))
+//	}
+//
+//	return GetDomainFromNode(response.Node), nil
+//}
 
-	return GetDomainFromNode(response.Node), nil
-}
-
-func GetDomainFromNode(node *etcd.Node) *Domain {
+func GetDomainFromNode(node *etcd.Node) (*Domain,error) {
 	return NewDomain(node)
 }
 
@@ -175,7 +163,10 @@ func getServiceClusterFromNode(clusterNode *etcd.Node) *ServiceCluster {
 
 func (w *Watcher) registerDomain(node *etcd.Node, action string) {
 
-	domainName := getDomainForNode(node)
+	domainName, err := getDomainForNode(node)
+	if err != nil {
+		return
+	}
 
 	if action == "delete" || action == "expire" {
 		w.broadcaster.Write(NewModelEvent("delete", &Domain{Name: domainName}))
@@ -186,7 +177,7 @@ func (w *Watcher) registerDomain(node *etcd.Node, action string) {
 	response, err := w.client.Get(domainKey, true, false)
 
 	if err == nil {
-		domain := NewDomain(response.Node)
+		domain, _ := NewDomain(response.Node)
 
 		//actualDomain := w.model.Domains[domainName]
 
@@ -195,7 +186,7 @@ func (w *Watcher) registerDomain(node *etcd.Node, action string) {
 			glog.Infof("Registered domain %s with (%s) %s", domainName, domain.Typ, domain.Value)
 
 			//Broadcast the updated domain
-			w.broadcaster.Write(domain)
+			w.broadcaster.Write(model.NewModelEvent("update", domain))
 
 		}
 
@@ -203,35 +194,33 @@ func (w *Watcher) registerDomain(node *etcd.Node, action string) {
 
 }
 
-func NewDomain(domainNode *etcd.Node) *Domain {
+func NewDomain(domainNode *etcd.Node) (*Domain, error) {
 	domain := &Domain{}
-	domainKey := domainNode.Key
 
-	domain.Name = getDomainForNode(domainNode)
+	domain.NodeKey = domainNode.Key
+
+	domainName, err := getDomainForNode(domainNode)
+	if err != nil {
+		return nil, err
+	}
+	domain.Name = domainName
+
 	for _, node := range domainNode.Nodes {
 		switch node.Key {
-		case domainKey + "/type":
+		case domainNode.Key + "/type":
 			domain.Typ = node.Value
-		case domainKey + "/value":
+		case domainNode.Key + "/value":
 			domain.Value = node.Value
 		}
 	}
-	return domain
+	return domain,nil
 
-}
-
-func setDomainPrefix(domainPrefix string) {
-	domainRegexp = regexp.MustCompile(domainPrefix + "/(.*)(/.*)*")
-}
-
-func getDomainForNode(node *etcd.Node) string {
-	return strings.Split(domainRegexp.FindStringSubmatch(node.Key)[1], "/")[0]
 }
 
 func (w *Watcher) registerService(node *etcd.Node, action string) {
 
 	serviceName, err := getEnvForNode(node)
-	if(err != nil) {
+	if err != nil {
 		return
 	}
 
@@ -244,7 +233,6 @@ func (w *Watcher) registerService(node *etcd.Node, action string) {
 	response, err := w.client.Get(w.servicePrefix+"/"+serviceName, true, true)
 
 	if err == nil {
-
 
 		sc := getServiceClusterFromNode(response.Node)
 
@@ -278,12 +266,12 @@ func (w *Watcher) registerService(node *etcd.Node, action string) {
 func newService(serviceNode *etcd.Node) (*Service, error) {
 
 	serviceIndex, err := getEnvIndexForNode(serviceNode)
-	if(err != nil) {
+	if err != nil {
 		return nil, err
 	}
 
-	serviceName , err := getEnvForNode(serviceNode)
-	if(err != nil) {
+	serviceName, err := getEnvForNode(serviceNode)
+	if err != nil {
 		return nil, err
 	}
 
@@ -385,7 +373,7 @@ func (w *Watcher) PersistService(s *Service) (*Service, error) {
 
 		if err != nil {
 			//Rollback creation
-			w.client.Delete(s.NodeKey,true)
+			w.client.Delete(s.NodeKey, true)
 			return nil, err
 		}
 
@@ -398,7 +386,6 @@ func computeNodeKey(s *Service, servicePrefix string) string {
 	return fmt.Sprintf("/%s/%s/%s", servicePrefix, s.Name, s.Index)
 }
 
-
 func computeDomainNodeKey(domainName string, domainPrefix string) string {
 	return fmt.Sprintf("/%s/%s", domainPrefix, domainName)
 }
@@ -407,24 +394,37 @@ func computeClusterKey(serviceName string, servicePrefix string) string {
 	return fmt.Sprintf("/%s/%s/", servicePrefix, serviceName)
 }
 
-
-func getEnvIndexForNode(node *etcd.Node) (string,error) {
+func getEnvIndexForNode(node *etcd.Node) (string, error) {
 	matches := serviceRegexp.FindStringSubmatch(node.Key)
-	if(len(matches) > 1) {
+	if len(matches) > 1 {
 		parts := strings.Split(matches[1], "/")
 		return parts[1], nil
 	} else {
-		return "",errors.New("Unable to extract env for node " + node.Key)
+		return "", errors.New("Unable to extract env for node " + node.Key)
 	}
 }
 
 func getEnvForNode(node *etcd.Node) (string, error) {
 	matches := serviceRegexp.FindStringSubmatch(node.Key)
-	if(len(matches) > 1) {
+	if len(matches) > 1 {
 		parts := strings.Split(matches[1], "/")
 		return parts[0], nil
 	} else {
-		return "",errors.New("Unable to extract env for node " + node.Key)
+		return "", errors.New("Unable to extract env for node " + node.Key)
+	}
+}
+
+func setDomainPrefix(domainPrefix string) {
+	domainRegexp = regexp.MustCompile(domainPrefix + "/(.*)(/.*)*")
+}
+
+func getDomainForNode(node *etcd.Node) (string, error) {
+	matches := domainRegexp.FindStringSubmatch(node.Key)
+	if len(matches) > 1 {
+		parts := strings.Split(matches[1], "/")
+		return parts[0], nil
+	} else {
+		return "", errors.New("Unable to extract domain for node " + node.Key)
 	}
 }
 
@@ -449,7 +449,6 @@ func NewStatus(service *Service, node *etcd.Node) *Status {
 	return status
 }
 
-
 func (w *Watcher) LoadAllServices() map[string]*ServiceCluster {
 	result := make(map[string]*ServiceCluster)
 
@@ -465,8 +464,8 @@ func (w *Watcher) LoadAllServices() map[string]*ServiceCluster {
 
 func (w *Watcher) LoadService(serviceName string) *ServiceCluster {
 
-	response, err := w.client.Get(computeClusterKey(serviceName, w.servicePrefix),true,true)
-	if(err != nil) {
+	response, err := w.client.Get(computeClusterKey(serviceName, w.servicePrefix), true, true)
+	if err != nil {
 		return nil
 	} else {
 		return getServiceClusterFromNode(response.Node)
@@ -474,51 +473,48 @@ func (w *Watcher) LoadService(serviceName string) *ServiceCluster {
 
 }
 
-
-
-
 func (w *Watcher) DestroyService(sc *ServiceCluster) error {
 	_, err := w.client.Delete(computeClusterKey(sc.Name, w.servicePrefix), true)
 
 	return err
 }
 
-
-func (w *Watcher) LoadAllDomains() map[string]*Domain      {
+func (w *Watcher) LoadAllDomains() map[string]*Domain {
 
 	result := make(map[string]*Domain)
 
 	response, err := w.client.Get(w.domainPrefix, true, true)
 	if err == nil {
 		for _, domainNode := range response.Node.Nodes {
-			domain := NewDomain(domainNode)
-			result[domain.Name] = domain
+			domain, err := NewDomain(domainNode)
+			if err == nil {
+				result[domain.Name] = domain
+			}
 		}
 	}
 	return result
 }
-func (w *Watcher) LoadDomain(domainName string) *Domain   {
-	response, err := w.client.Get(computeDomainNodeKey(domainName, w.domainPrefix),true,true)
-	if(err != nil) {
+func (w *Watcher) LoadDomain(domainName string) *Domain {
+	response, err := w.client.Get(computeDomainNodeKey(domainName, w.domainPrefix), true, true)
+	if err != nil {
 		return nil
 	} else {
-		return NewDomain(response.Node)
+		domain, _ :=NewDomain(response.Node)
+		return domain
 	}
 
 }
 
-
 func (w *Watcher) PersistDomain(d *Domain) (*Domain, error) {
 
 	if d.NodeKey != "" {
-
 		resp, err := w.client.Get(d.NodeKey, false, true)
 
-		oldDomain := NewDomain(resp.Node)
+		oldDomain, _ := NewDomain(resp.Node)
 		if err != nil {
 			return nil, err
 		} else {
-			if oldDomain.Typ != d.Typ{
+			if oldDomain.Typ != d.Typ {
 				w.client.Set(fmt.Sprintf("%s/type", d.NodeKey), d.Typ, 0)
 			}
 
@@ -530,16 +526,14 @@ func (w *Watcher) PersistDomain(d *Domain) (*Domain, error) {
 	} else {
 
 		d.NodeKey = computeDomainNodeKey(d.Name, w.domainPrefix)
-
-		_, err := w.client.Create(fmt.Sprintf("%s/type", d.NodeKey), d.Typ, 0)
+ 		_, err := w.client.Create(fmt.Sprintf("%s/type", d.NodeKey), d.Typ, 0)
 		if err == nil {
 			_, err = w.client.Create(fmt.Sprintf("%s/value", d.NodeKey), d.Value, 0)
 		}
 
-
 		if err != nil {
 			//Rollback creation
-			w.client.Delete(d.NodeKey,true)
+			w.client.Delete(d.NodeKey, true)
 			return nil, err
 		}
 
@@ -547,7 +541,7 @@ func (w *Watcher) PersistDomain(d *Domain) (*Domain, error) {
 	return d, nil
 
 }
-func (w *Watcher) DestroyDomain(d *Domain) error             {
+func (w *Watcher) DestroyDomain(d *Domain) error {
 	_, err := w.client.Delete(d.NodeKey, true)
 	return err
 

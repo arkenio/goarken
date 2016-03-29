@@ -1,18 +1,16 @@
 package storage
 
 import (
+	"errors"
+	"fmt"
+	"github.com/arkenio/goarken/model"
 	. "github.com/arkenio/goarken/model"
 	"github.com/coreos/go-etcd/etcd"
 	. "github.com/smartystreets/goconvey/convey"
 	"os"
 	"testing"
-	"errors"
-	"fmt"
-	"github.com/arkenio/goarken/model"
 	"time"
 )
-
-
 
 func Test_EtcdWatcher(t *testing.T) {
 	if os.Getenv("IT_Test") != "" {
@@ -27,8 +25,6 @@ func IT_EtcdWatcher(t *testing.T) {
 
 	var w *Watcher
 	var updateChan chan *model.ModelEvent
-
-
 
 	notifCount := 0
 
@@ -56,6 +52,7 @@ func IT_EtcdWatcher(t *testing.T) {
 		Convey("When i get an etcd node from that service", func() {
 			resp, _ := client.Get(fmt.Sprintf("/services/%s/1/status/expected", testServiceName), true, true)
 			Convey("Then it can get the env key from it", func() {
+				So(resp, ShouldNotBeNil)
 				name, error := getEnvForNode(resp.Node)
 				So(error, ShouldBeNil)
 				So(name, ShouldEqual, testServiceName)
@@ -103,7 +100,6 @@ func IT_EtcdWatcher(t *testing.T) {
 
 			service.Status.Expected = STARTED_STATUS
 
-
 			w.PersistService(service)
 
 			Convey("Then the service should be modified", func() {
@@ -142,21 +138,24 @@ func IT_EtcdWatcher(t *testing.T) {
 		domain.Typ = "service"
 		domain.Value = "testService"
 
-
 		w.PersistDomain(domain)
+
+		Convey("They key of that domain shoulde be well computed", func() {
+			So(computeDomainNodeKey(domain.Name, "domains"), ShouldEqual, "/domains/test.domain.com")
+		})
 
 		Convey("When i get an etcd node from that domain", func() {
 			resp, _ := client.Get(fmt.Sprintf("/domains/%s/type", domain.Name), true, true)
 			So(resp, ShouldNotBeNil)
 			Convey("Then it can get the env key from it", func() {
-				name := getDomainForNode(resp.Node)
+				name, _ := getDomainForNode(resp.Node)
 				So(name, ShouldEqual, domain.Name)
 			})
 
 		})
 
 		Convey("When it load all domains", func() {
-			domains:= w.LoadAllDomains()
+			domains := w.LoadAllDomains()
 			Convey("Then there should be one domain", func() {
 				So(len(domains), ShouldEqual, 1)
 			})
@@ -167,7 +166,7 @@ func IT_EtcdWatcher(t *testing.T) {
 			domain = w.LoadDomain(domain.Name)
 			Convey("Then it should be equals to created domain", func() {
 				So(domain, ShouldNotBeNil)
-				So(domain.Name, ShouldEqual,"test.domain.com")
+				So(domain.Name, ShouldEqual, "test.domain.com")
 				So(domain.Value, ShouldEqual, "testService")
 				So(domain.Typ, ShouldEqual, "service")
 			})
@@ -176,12 +175,73 @@ func IT_EtcdWatcher(t *testing.T) {
 		Convey("When it destroy a domain", func() {
 			w.DestroyDomain(domain)
 			domains := w.LoadAllDomains()
-			So(len(domains), ShouldEqual,0)
+			So(len(domains), ShouldEqual, 0)
+		})
+
+		Convey("When i modify a domain", func() {
+
+			initialNotifCount := notifCount
+			domain := w.LoadDomain("test.domain.com")
+
+			domain.Value = "testService2"
+
+			w.PersistDomain(domain)
+
+			Convey("Then the domain should be modified", func() {
+				domain := w.LoadDomain("test.domain.com")
+				So(domain, ShouldNotBeNil)
+				So(domain.Value, ShouldEqual, "testService2")
+			})
+
+			Convey("Then notifications	 should have been sent", func() {
+				_, err := waitModelEvent(w)
+				So(err, ShouldBeNil)
+				So(notifCount, ShouldBeGreaterThan, initialNotifCount)
+			})
+
+		})
+
+		Convey("When two objet listens for event", func() {
+			count1 := 0
+			count2 := 0
+
+			chan1 := w.Listen()
+			chan2 := w.Listen()
+
+			go func() {
+				for {
+					select {
+					case <-chan1:
+						count1 = count1 + 1
+					}
+				}
+			}()
+
+			go func() {
+				for {
+					select {
+					case <-chan2:
+						count2 = count2 + 1
+					}
+				}
+			}()
+
+			domain := w.LoadDomain("test.domain.com")
+			domain.Value = "testService2"
+			w.PersistDomain(domain)
+
+			_, err := waitModelEvent(w)
+			So(err, ShouldBeNil)
+
+			Convey("Then both object should have been notified",func() {
+				So(count1, ShouldEqual, 1)
+				So(count2, ShouldEqual, 1)
+			})
+
 		})
 	})
 
 }
-
 
 func waitModelEvent(w *Watcher) (*ModelEvent, error) {
 	channel := w.Listen()
@@ -191,8 +251,7 @@ func waitModelEvent(w *Watcher) (*ModelEvent, error) {
 	case <-ticker.C:
 		return nil, errors.New("Timeout when waiting for ModelEvent")
 	case event := <-channel:
-		return event,nil
+		return event, nil
 	}
 
 }
-

@@ -8,6 +8,10 @@ type Domain struct {
 	Value string
 }
 
+func (d *Domain) String() string {
+	return d.Value + " at " + d.NodeKey
+}
+
 
 func (domain *Domain) Equals(other *Domain) bool {
 	if domain == nil && other == nil {
