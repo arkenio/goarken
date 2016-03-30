@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"errors"
 	"fmt"
 	"github.com/arkenio/goarken/model"
 	. "github.com/arkenio/goarken/model"
@@ -9,8 +8,14 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 	"os"
 	"testing"
-	"time"
+	"sync"
 )
+
+func wait(listening chan *ModelEvent, wg *sync.WaitGroup) {
+	defer wg.Done()
+	<- listening
+
+}
 
 func Test_EtcdWatcher(t *testing.T) {
 	if os.Getenv("IT_Test") != "" {
@@ -99,6 +104,8 @@ func IT_EtcdWatcher(t *testing.T) {
 			service = sc.Instances[0]
 
 			service.Status.Expected = STARTED_STATUS
+			service.Config.RancherInfo = &RancherInfoType{ServiceId: "bla"}
+
 
 			w.PersistService(service)
 
@@ -106,11 +113,10 @@ func IT_EtcdWatcher(t *testing.T) {
 				sc := w.LoadService(testServiceName)
 				service = sc.Instances[0]
 				So(service.Status.Expected, ShouldEqual, STARTED_STATUS)
+				So(service.Config.RancherInfo.ServiceId, ShouldEqual, "bla")
 			})
 
 			Convey("Then notification should have been sent", func() {
-				_, err := waitModelEvent(w)
-				So(err, ShouldBeNil)
 				So(notifCount, ShouldBeGreaterThan, initialNotifCount)
 			})
 
@@ -194,64 +200,28 @@ func IT_EtcdWatcher(t *testing.T) {
 			})
 
 			Convey("Then notifications	 should have been sent", func() {
-				_, err := waitModelEvent(w)
-				So(err, ShouldBeNil)
 				So(notifCount, ShouldBeGreaterThan, initialNotifCount)
 			})
 
 		})
 
 		Convey("When two objet listens for event", func() {
-			count1 := 0
-			count2 := 0
-
-			chan1 := w.Listen()
-			chan2 := w.Listen()
-
-			go func() {
-				for {
-					select {
-					case <-chan1:
-						count1 = count1 + 1
-					}
-				}
-			}()
-
-			go func() {
-				for {
-					select {
-					case <-chan2:
-						count2 = count2 + 1
-					}
-				}
-			}()
-
 			domain := w.LoadDomain("test.domain.com")
 			domain.Value = "testService2"
+
+			var wg sync.WaitGroup
+			wg.Add(2)
+			go wait(w.Listen(), &wg)
+			go wait(w.Listen(), &wg)
+
 			w.PersistDomain(domain)
 
-			_, err := waitModelEvent(w)
-			So(err, ShouldBeNil)
-
-			Convey("Then both object should have been notified",func() {
-				So(count1, ShouldEqual, 1)
-				So(count2, ShouldEqual, 1)
+			Convey("Then both object should have been notified", func() {
+				wg.Wait()
+				So(true, ShouldBeTrue)
 			})
 
 		})
 	})
-
-}
-
-func waitModelEvent(w *Watcher) (*ModelEvent, error) {
-	channel := w.Listen()
-	ticker := time.NewTicker(time.Duration(5) * time.Second)
-
-	select {
-	case <-ticker.C:
-		return nil, errors.New("Timeout when waiting for ModelEvent")
-	case event := <-channel:
-		return event, nil
-	}
 
 }

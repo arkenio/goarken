@@ -84,8 +84,7 @@ func (r *RancherServiceDriver) Destroy(s *Service) error {
 	rancherId := s.Config.RancherInfo.ServiceId
 	env, err := r.rancherClient.Environment.ById(rancherId)
 	check(err)
-	env, err = r.rancherClient.Environment.ActionDeactivateservices(env)
-	return err
+	return r.rancherClient.Environment.Delete(env)
 }
 
 

@@ -1,44 +1,11 @@
 package model
 
-import (
-	"fmt"
-)
-
 type Model struct {
 	serviceDriver     ServiceDriver
 	persistenceDriver PersistenceDriver
 
 	Domains  map[string]*Domain
 	Services map[string]*ServiceCluster
-}
-
-type ModelEvent struct {
-	eventType string
-	model     interface{}
-}
-
-func (me *ModelEvent) String() string {
-	return fmt.Sprintf("%s on  %s", me.eventType, me.model)
-}
-
-func NewModelEvent(eventType string, model interface{}) *ModelEvent {
-	return &ModelEvent{eventType, model}
-}
-
-func FromInterfaceChannel(fromChannel chan interface{}, toChannel chan *ModelEvent) {
-
-	go func() {
-		for {
-			event := <-fromChannel
-			if evt, ok := event.(*ModelEvent); ok {
-				toChannel <- evt
-			} else {
-				panic(event)
-			}
-
-		}
-	}()
-
 }
 
 func NewArkenModel(sDriver ServiceDriver, pDriver PersistenceDriver) *Model {
@@ -65,38 +32,109 @@ func (m *Model) Init() {
 	m.Services = m.persistenceDriver.LoadAllServices()
 
 	go func() {
-		m.handlePersitenceModelEventOn(m.persistenceDriver.Listen())
+		m.handlePersistenceModelEventOn(m.persistenceDriver.Listen())
 	}()
 
-	//	if m.serviceDriver != nil {
-	//		go m.handleModelEventOn(m.serviceDriver.Listen())
-	//	}
+}
+
+func (m *Model) CreateService(s *Service, startOnCreate bool) (*Service, error) {
+
+	s, err := m.persistenceDriver.PersistService(s)
+	if err != nil {
+		return nil,err
+	}
+
+	if m.serviceDriver != nil {
+		info, err := m.serviceDriver.Create(s, startOnCreate)
+		if err != nil {
+			return nil, err
+		}
+
+		m.updateInfoFromDriver(s, info)
+	}
+
+	return m.saveService(s)
 
 }
 
-func (m *Model) Create(s *Service, startOnCreate bool) (*Service, error) {
+func (m *Model) StartService(service *Service) (*Service, error) {
 
-	m.persistenceDriver.PersistService(s)
+	if m.serviceDriver != nil {
+		info, err := m.serviceDriver.Start(service)
+		if err != nil {
+			return nil, err
+		}
+		m.updateInfoFromDriver(service, info)
+	}
 
-	res, err := m.serviceDriver.Create(s, startOnCreate)
-	if err != nil {
+	service.Status.Expected = STARTED_STATUS
+	service.Status.Current = STARTING_STATUS
+	return m.saveService(service)
+
+}
+
+func (m *Model) StopService(service *Service) (*Service, error) {
+	if m.serviceDriver != nil {
+		info, err := m.serviceDriver.Stop(service)
+		if err != nil {
+			return nil, err
+		}
+
+		m.updateInfoFromDriver(service, info)
+	}
+
+	return m.saveService(service)
+}
+
+func (m *Model) DestroyService(service *Service) error {
+	if m.serviceDriver != nil {
+		err := m.serviceDriver.Destroy(service)
+		if err != nil {
+			return err
+		}
+	}
+
+	return m.persistenceDriver.DestroyService(m.Services[service.Name])
+}
+
+func (m *Model) DestroyServiceCluster(sc *ServiceCluster) error {
+	for _, service := range sc.Instances {
+		if m.serviceDriver != nil {
+			err := m.serviceDriver.Destroy(service)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+
+	return m.persistenceDriver.DestroyService(sc)
+}
+
+
+
+func (m *Model) saveService(service *Service) (*Service, error) {
+	service, err := m.persistenceDriver.PersistService(service)
+	if err == nil {
+		m.Services[service.Name].Add(service)
+		return service, nil
+	} else {
 		return nil, err
 	}
-
-	if info, ok := res.(RancherInfoType); ok {
-		s.Config.RancherInfo = info
-	}
-
-	if info, ok := res.(FleetInfoType); ok {
-		s.Config.FleetInfo = info
-	}
-
-	m.persistenceDriver.PersistService(s)
-
-	return s, nil
 }
 
-func (m *Model) handlePersitenceModelEventOn(eventStream chan *ModelEvent) {
+func (m *Model) updateInfoFromDriver(service *Service, info interface{}) {
+	if rancherInfo, ok := info.(*RancherInfoType); ok {
+		service.Config.RancherInfo = rancherInfo
+	}
+
+	if fleetInfo, ok := info.(*FleetInfoType); ok {
+		service.Config.FleetInfo = fleetInfo
+	}
+
+}
+
+func (m *Model) handlePersistenceModelEventOn(eventStream chan *ModelEvent) {
 
 	for {
 		event := <-eventStream
@@ -106,14 +144,14 @@ func (m *Model) handlePersitenceModelEventOn(eventStream chan *ModelEvent) {
 		case "update":
 			if sc, ok := event.model.(*ServiceCluster); ok {
 				m.Services[sc.Name] = sc
-			} else if domain, ok := event.model.(Domain); ok {
-				m.Domains[domain.Name] = &domain
+			} else if domain, ok := event.model.(*Domain); ok {
+				m.Domains[domain.Name] = domain
 			}
 		case "delete":
-			if sc, ok := event.model.(ServiceCluster); ok {
+			if sc, ok := event.model.(*ServiceCluster); ok {
 				delete(m.Services, sc.Name)
 
-			} else if domain, ok := event.model.(Domain); ok {
+			} else if domain, ok := event.model.(*Domain); ok {
 				delete(m.Domains, domain.Name)
 			}
 		}

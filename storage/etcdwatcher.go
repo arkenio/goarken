@@ -115,9 +115,6 @@ func (w *Watcher) watch(updateChannel chan *etcd.Response, stop chan struct{}, k
 			if response != nil {
 				registerFunc(response.Node, response.Action)
 			}
-		default:
-			// Don't slam the etcd server
-			time.Sleep(time.Second)
 		}
 	}
 }
@@ -331,6 +328,9 @@ func (w *Watcher) PersistService(s *Service) (*Service, error) {
 	if s.NodeKey != "" {
 
 		resp, err := w.client.Get(s.NodeKey, false, true)
+		if(err != nil) {
+			return nil, errors.New("No service with key " + s.NodeKey + " found in etcd")
+		}
 
 		oldService, err := newService(resp.Node)
 		if err != nil {
@@ -345,7 +345,7 @@ func (w *Watcher) PersistService(s *Service) (*Service, error) {
 			}
 
 			bytes, err := json.Marshal(s.Config)
-			if err != nil {
+			if err == nil {
 				_, err = w.client.Set(fmt.Sprintf("%s/config/gogeta", s.NodeKey), string(bytes), 0)
 			}
 
@@ -363,7 +363,7 @@ func (w *Watcher) PersistService(s *Service) (*Service, error) {
 		}
 		if err == nil {
 			bytes, err := json.Marshal(s.Config)
-			if err != nil {
+			if err == nil {
 				_, err = w.client.Create(fmt.Sprintf("%s/config/gogeta", s.NodeKey), string(bytes), 0)
 			}
 		}

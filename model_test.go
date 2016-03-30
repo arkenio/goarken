@@ -1,14 +1,12 @@
 package main
 
 import (
-	"errors"
 	. "github.com/arkenio/goarken/model"
 	"github.com/arkenio/goarken/storage"
 	"github.com/coreos/go-etcd/etcd"
 	. "github.com/smartystreets/goconvey/convey"
 	"os"
 	"testing"
-	"time"
 )
 
 type MockServiceDriver struct {
@@ -26,19 +24,19 @@ func NewMockServiceDriver() *MockServiceDriver {
 func (sd *MockServiceDriver) Create(s *Service, startOnCreate bool) (interface{}, error) {
 	sd.calls["create"] = sd.calls["create"] + 1
 	sd.events.Write(NewModelEvent("update", s))
-	return s, nil
+	return &RancherInfoType{ServiceId: "rancherId"}, nil
 }
 
 func (sd *MockServiceDriver) Start(s *Service) (interface{}, error) {
 	sd.calls["start"] = sd.calls["start"] + 1
 	sd.events.Write(NewModelEvent("update", s))
-	return s, nil
+	return &RancherInfoType{ServiceId: "rancherId"}, nil
 }
 
 func (sd *MockServiceDriver) Stop(s *Service) (interface{}, error) {
 	sd.calls["stop"] = sd.calls["stop"] + 1
 	sd.events.Write(NewModelEvent("update", s))
-	return s, nil
+	return &RancherInfoType{ServiceId: "rancherId"}, nil
 
 }
 func (sd *MockServiceDriver) Destroy(s *Service) error {
@@ -75,23 +73,65 @@ func IT_EtcdWatcher(t *testing.T) {
 		model = NewArkenModel(sd, pd)
 
 		Convey("When i create a service", func() {
-
+			initialCreateCount := sd.calls["create"]
 			service := &Service{}
 			service.Init()
 
 			service.Name = "testService"
 
-			model.Create(service, false)
+			service, err := model.CreateService(service, false)
 
 			Convey("Then the service should be available in all services", func() {
-				//Has to wait for 2 update events
-				me, _ := waitModelEvent(pd)
-				me, _ = waitModelEvent(pd)
-				So(me, ShouldNotBeNil)
-
+				So(err, ShouldBeNil)
 				So(len(model.Services), ShouldEqual, 1)
 				sc := model.Services["testService"]
 				So(sc, ShouldNotBeNil)
+			})
+
+			Convey("Then its status should be stopped", func() {
+
+				sc := model.Services["testService"]
+				_, status := sc.Next()
+				if st, ok := status.(StatusError); ok {
+					So(st.ComputedStatus, ShouldEqual, STOPPED_STATUS)
+				} else {
+					So(ok, ShouldBeTrue)
+				}
+			})
+
+			Convey("Then the service should be created in the backend", func() {
+
+				So(sd.calls["create"], ShouldEqual, initialCreateCount+1)
+				instance := model.Services["testService"].GetInstances()[0]
+				So(instance.Config, ShouldNotBeNil)
+				So(instance.Config.RancherInfo, ShouldNotBeNil)
+				So(instance.Config.RancherInfo.ServiceId, ShouldEqual, "rancherId")
+			})
+
+			Convey("When I start the service", func() {
+				initialStartCount := sd.calls["start"]
+				model.StartService(service)
+
+				Convey("Then the service should be started in the backend", func() {
+					So(sd.calls["start"], ShouldEqual, initialStartCount+1)
+				})
+
+				Convey("Then its status should be starting", func() {
+					So(getServiceStatus(model, "testService"), ShouldEqual, STARTING_STATUS)
+				})
+
+			})
+
+			Convey("When I start the service and the service is started", func() {
+				model.StartService(service)
+				service.Status.Current = STARTED_STATUS
+				service.Status.Alive = "1"
+
+				Convey("Then its status should be started", func() {
+					So(getServiceStatus(model, "testService"), ShouldEqual, STARTED_STATUS)
+
+				})
+
 			})
 
 		})
@@ -99,15 +139,12 @@ func IT_EtcdWatcher(t *testing.T) {
 	})
 }
 
-func waitModelEvent(pd PersistenceDriver) (*ModelEvent, error) {
-	channel := pd.Listen()
-	ticker := time.NewTicker(time.Duration(5) * time.Second)
-
-	select {
-	case <-ticker.C:
-		return nil, errors.New("Timeout when waiting for ModelEvent")
-	case event := <-channel:
-		return event, nil
+func getServiceStatus(model *Model, serviceName string) string {
+	sc := model.Services[serviceName]
+	s, status := sc.Next()
+	if st, ok := status.(StatusError); ok {
+		return st.ComputedStatus
+	} else {
+		return s.Status.Current
 	}
-
 }

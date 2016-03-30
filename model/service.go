@@ -21,14 +21,18 @@ func (s *Location) Equals(other *Location) bool {
 }
 
 func (s *Location) IsFullyDefined() bool {
+	if s == nil {
+		return false
+	}
 	return s.Host != "" && s.Port != 0
+
 }
 
 type ServiceConfig struct {
 	Robots      string `json:"robots"`
 	Environment map[string]interface{}
-	RancherInfo RancherInfoType `json:"rancherInfo,omitempty"`
-	FleetInfo   FleetInfoType   `json:"fleetInfo,omitempty"`
+	RancherInfo *RancherInfoType `json:"rancherInfo,omitempty"`
+	FleetInfo   *FleetInfoType   `json:"fleetInfo,omitempty"`
 }
 
 type RancherInfoType struct {
@@ -66,6 +70,7 @@ func (s *Service) Init() *Service {
 
 	status := NewInitialStatus(STOPPED_STATUS, s)
 	s.Status = status
+	s.Config = &ServiceConfig{}
 
 	return s
 
