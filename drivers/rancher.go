@@ -3,6 +3,7 @@ package drivers
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"github.com/Sirupsen/logrus"
 	. "github.com/arkenio/goarken/model"
 	"github.com/gorilla/websocket"
@@ -11,10 +12,13 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"fmt"
+	"regexp"
 )
 
-var log = logrus.New()
+var (
+	log               = logrus.New()
+	rancherHostRegexp = regexp.MustCompile(".*/projects/(.*)")
+)
 
 type RancherServiceDriver struct {
 	rancherClient *client.RancherClient
@@ -42,6 +46,10 @@ func NewRancherServiceDriver(rancherHost string, rancherAccessKey string, ranche
 	go sd.watch(c)
 
 	return sd, nil
+
+}
+
+func getProjectIdFromRancherHost(host string) {
 
 }
 
@@ -85,11 +93,11 @@ func (r *RancherServiceDriver) watch(c *websocket.Conn) {
 				if err != nil {
 					log.Printf(err.Error())
 				} else {
-					info := &RancherInfoType {
-						EnvironmentId: publish.ResourceId,
+					info := &RancherInfoType{
+						EnvironmentId:   publish.ResourceId,
 						EnvironmentName: result.Name,
-						Location:        &Location{Host:fmt.Sprintf("lb.%s",result.Name), Port:80},
-						CurrentStatus: convertRancherHealthToStatus(result.HealthState),
+						Location:        &Location{Host: fmt.Sprintf("lb.%s", result.Name), Port: 80},
+						CurrentStatus:   convertRancherHealthToStatus(result.HealthState),
 					}
 
 					r.broadcaster.Write(NewModelEvent("update", info))
@@ -106,7 +114,7 @@ func convertRancherHealthToStatus(health string) string {
 	switch health {
 	case "healthy":
 		return STARTED_STATUS
-	case "degraded","activating","initializing":
+	case "degraded", "activating", "initializing":
 		return STARTING_STATUS
 	default:
 		return STOPPED_STATUS

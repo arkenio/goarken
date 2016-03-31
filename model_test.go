@@ -46,9 +46,7 @@ func (sd *MockServiceDriver) Destroy(s *Service) error {
 }
 
 func (sd *MockServiceDriver) Listen() chan *ModelEvent {
-	result := make(chan *ModelEvent)
-	FromInterfaceChannel(sd.events.Listen(), result)
-	return result
+	return FromInterfaceChannel(sd.events.Listen())
 }
 
 func (w *MockServiceDriver) StopDriver() {
