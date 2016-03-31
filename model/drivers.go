@@ -9,6 +9,10 @@ type ServiceDriver interface {
 	Stop(s *Service) (interface{},error)
 	Destroy(s *Service) error
 
+
+//	Watch(s *Service) error
+//	UnWatch(s *Service) error
+
 	Listen() chan *ModelEvent
 
 }

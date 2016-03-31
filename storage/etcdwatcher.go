@@ -14,6 +14,7 @@ import (
 	"time"
 
 //	"github.com/Sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 )
 
 const (
@@ -23,6 +24,7 @@ const (
 var (
 	domainRegexp  = regexp.MustCompile("/domain/(.*)(/.*)*")
 	serviceRegexp = regexp.MustCompile("/services/(.*)(/.*)*")
+	log = logrus.New()
 )
 
 // A Watcher loads and watch the etcd hierarchy for Domains and Services and
@@ -64,10 +66,9 @@ func (w *Watcher) Init() {
 }
 
 func (w *Watcher) Listen() chan *model.ModelEvent {
-	result := make(chan *model.ModelEvent)
 
-	FromInterfaceChannel(w.broadcaster.Listen(), result)
-	return result
+	return FromInterfaceChannel(w.broadcaster.Listen())
+
 
 }
 
@@ -326,7 +327,7 @@ func newService(serviceNode *etcd.Node) (*Service, error) {
 
 func (w *Watcher) PersistService(s *Service) (*Service, error) {
 	if s.NodeKey != "" {
-
+		log.Debugf("Persisting key %s ", s.NodeKey)
 		resp, err := w.client.Get(s.NodeKey, false, true)
 		if(err != nil) {
 			return nil, errors.New("No service with key " + s.NodeKey + " found in etcd")
@@ -337,21 +338,41 @@ func (w *Watcher) PersistService(s *Service) (*Service, error) {
 			return nil, err
 		} else {
 			if oldService.Status.Expected != s.Status.Expected {
-				w.client.Set(fmt.Sprintf("%s/status/expected", s.NodeKey), s.Status.Expected, 0)
+				_,err = w.client.Set(fmt.Sprintf("%s/status/expected", s.NodeKey), s.Status.Expected, 0)
 			}
 
-			if oldService.Status.Current != s.Status.Current {
-				w.client.Set(fmt.Sprintf("%s/status/current", s.NodeKey), s.Status.Current, 0)
+			if err == nil &&  oldService.Status.Current != s.Status.Current {
+				_,err =  w.client.Set(fmt.Sprintf("%s/status/current", s.NodeKey), s.Status.Current, 0)
 			}
 
-			bytes, err := json.Marshal(s.Config)
-			if err == nil {
+			if err == nil &&  oldService.Status.Alive != s.Status.Alive {
+				_,err =  w.client.Set(fmt.Sprintf("%s/status/alive", s.NodeKey), s.Status.Alive, 0)
+			}
+
+
+			bytes, err2 := json.Marshal(s.Location)
+			if err2 == nil &&  oldService.Location != s.Location{
+				_,err =  w.client.Set(fmt.Sprintf("%s/location", s.NodeKey), string(bytes), 0)
+			} else {
+				err = err2
+			}
+
+
+			bytes, err2 = json.Marshal(s.Config)
+			if err2 == nil {
 				_, err = w.client.Set(fmt.Sprintf("%s/config/gogeta", s.NodeKey), string(bytes), 0)
+			}else {
+				err = err2
 			}
 
-			if oldService.Domain != s.Domain {
-				w.client.Set(fmt.Sprintf("%s/domain", s.NodeKey), s.Domain, 0)
+			if err == nil && oldService.Domain != s.Domain {
+				_,err = w.client.Set(fmt.Sprintf("%s/domain", s.NodeKey), s.Domain, 0)
 			}
+
+			if(err != nil ) {
+				return nil,err
+			}
+
 		}
 
 	} else {

@@ -3,6 +3,7 @@ package model
 import (
 	"github.com/Sirupsen/logrus"
 	"time"
+	"fmt"
 )
 
 type Location struct {
@@ -36,7 +37,17 @@ type ServiceConfig struct {
 }
 
 type RancherInfoType struct {
-	ServiceId string
+	EnvironmentId   string
+	EnvironmentName string
+	Location        *Location
+	CurrentStatus   string
+}
+
+func (r *RancherInfoType) String() string {
+	if r == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("RancherInfo for %s : envId: %s, location: %s, currentStatus: %s", r.EnvironmentName, r.EnvironmentId, r.Location, r.CurrentStatus)
 }
 
 type FleetInfoType struct {

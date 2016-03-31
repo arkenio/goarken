@@ -15,18 +15,19 @@ func NewModelEvent(eventType string, model interface{}) *ModelEvent {
 	return &ModelEvent{eventType, model}
 }
 
-func FromInterfaceChannel(fromChannel chan interface{}, toChannel chan *ModelEvent) {
-
+func FromInterfaceChannel(fromChannel chan interface{}) chan *ModelEvent{
+	result := make(chan *ModelEvent)
 	go func() {
 		for {
 			event := <-fromChannel
 			if evt, ok := event.(*ModelEvent); ok {
-				toChannel <- evt
+				result <- evt
 			} else {
 				panic(event)
 			}
 
 		}
 	}()
+	return result
 
 }

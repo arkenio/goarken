@@ -1,4 +1,8 @@
 package model
+import "github.com/Sirupsen/logrus"
+
+
+var log = logrus.New()
 
 type Model struct {
 	serviceDriver     ServiceDriver
@@ -33,6 +37,10 @@ func (m *Model) Init() {
 
 	go func() {
 		m.handlePersistenceModelEventOn(m.persistenceDriver.Listen())
+	}()
+
+	go func() {
+		m.handlePersistenceModelEventOn(m.serviceDriver.Listen())
 	}()
 
 }
@@ -146,6 +154,8 @@ func (m *Model) handlePersistenceModelEventOn(eventStream chan *ModelEvent) {
 				m.Services[sc.Name] = sc
 			} else if domain, ok := event.model.(*Domain); ok {
 				m.Domains[domain.Name] = domain
+			} else if info, ok := event.model.(*RancherInfoType); ok {
+				m.onRancherInfo(info)
 			}
 		case "delete":
 			if sc, ok := event.model.(*ServiceCluster); ok {
@@ -158,4 +168,25 @@ func (m *Model) handlePersistenceModelEventOn(eventStream chan *ModelEvent) {
 
 	}
 
+}
+
+func (m *Model) onRancherInfo(info *RancherInfoType) {
+	log.Info(info.String())
+	sc := m.Services[info.EnvironmentName]
+	if sc != nil {
+		for _,service := range sc.GetInstances() {
+			service.Config.RancherInfo = info
+			service.Location = info.Location
+			service.Status.Current = info.CurrentStatus
+			if(service.Status.Current == STARTED_STATUS) {
+				service.Status.Alive = "1"
+			} else {
+				service.Status.Alive = ""
+			}
+			_, err := m.persistenceDriver.PersistService(service)
+			if(err!= nil) {
+				log.Errorf("Error when persisting : %s", err.Error())
+			}
+		}
+	}
 }

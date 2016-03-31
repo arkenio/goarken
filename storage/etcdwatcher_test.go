@@ -104,7 +104,7 @@ func IT_EtcdWatcher(t *testing.T) {
 			service = sc.Instances[0]
 
 			service.Status.Expected = STARTED_STATUS
-			service.Config.RancherInfo = &RancherInfoType{ServiceId: "bla"}
+			service.Config.RancherInfo = &RancherInfoType{EnvironmentId: "bla"}
 
 
 			w.PersistService(service)
@@ -113,7 +113,7 @@ func IT_EtcdWatcher(t *testing.T) {
 				sc := w.LoadService(testServiceName)
 				service = sc.Instances[0]
 				So(service.Status.Expected, ShouldEqual, STARTED_STATUS)
-				So(service.Config.RancherInfo.ServiceId, ShouldEqual, "bla")
+				So(service.Config.RancherInfo.EnvironmentId, ShouldEqual, "bla")
 			})
 
 			Convey("Then notification should have been sent", func() {

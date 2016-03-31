@@ -92,7 +92,3 @@ func UnitName(s *Service) string {
 func (f *FleetServiceDriver) Listen() chan *ModelEvent {
 	return nil
 }
-
-func (w *FleetServiceDriver) StopDriver() {
-
-}

@@ -24,19 +24,19 @@ func NewMockServiceDriver() *MockServiceDriver {
 func (sd *MockServiceDriver) Create(s *Service, startOnCreate bool) (interface{}, error) {
 	sd.calls["create"] = sd.calls["create"] + 1
 	sd.events.Write(NewModelEvent("update", s))
-	return &RancherInfoType{ServiceId: "rancherId"}, nil
+	return &RancherInfoType{EnvironmentId: "rancherId"}, nil
 }
 
 func (sd *MockServiceDriver) Start(s *Service) (interface{}, error) {
 	sd.calls["start"] = sd.calls["start"] + 1
 	sd.events.Write(NewModelEvent("update", s))
-	return &RancherInfoType{ServiceId: "rancherId"}, nil
+	return &RancherInfoType{EnvironmentId: "rancherId"}, nil
 }
 
 func (sd *MockServiceDriver) Stop(s *Service) (interface{}, error) {
 	sd.calls["stop"] = sd.calls["stop"] + 1
 	sd.events.Write(NewModelEvent("update", s))
-	return &RancherInfoType{ServiceId: "rancherId"}, nil
+	return &RancherInfoType{EnvironmentId: "rancherId"}, nil
 
 }
 func (sd *MockServiceDriver) Destroy(s *Service) error {
@@ -105,7 +105,7 @@ func IT_EtcdWatcher(t *testing.T) {
 				instance := model.Services["testService"].GetInstances()[0]
 				So(instance.Config, ShouldNotBeNil)
 				So(instance.Config.RancherInfo, ShouldNotBeNil)
-				So(instance.Config.RancherInfo.ServiceId, ShouldEqual, "rancherId")
+				So(instance.Config.RancherInfo.EnvironmentId, ShouldEqual, "rancherId")
 			})
 
 			Convey("When I start the service", func() {
