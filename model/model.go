@@ -1,5 +1,8 @@
 package model
-import "github.com/Sirupsen/logrus"
+import (
+	"github.com/Sirupsen/logrus"
+	"errors"
+)
 
 
 var log = logrus.New()
@@ -12,9 +15,9 @@ type Model struct {
 	Services map[string]*ServiceCluster
 }
 
-func NewArkenModel(sDriver ServiceDriver, pDriver PersistenceDriver) *Model {
+func NewArkenModel(sDriver ServiceDriver, pDriver PersistenceDriver) (*Model,error) {
 	if pDriver == nil {
-		panic("Can't use a nil persistence Driver")
+		return nil, errors.New("Can't use a nil persistence Driver for Arken model")
 	}
 
 	model := &Model{
@@ -24,16 +27,30 @@ func NewArkenModel(sDriver ServiceDriver, pDriver PersistenceDriver) *Model {
 		persistenceDriver: pDriver,
 	}
 
-	model.Init()
+	err := model.Init()
 
-	return model
+	if err == nil {
+		return model,nil
+	} else {
+		return nil, err
+	}
 }
 
-func (m *Model) Init() {
+func (m *Model) Init() error{
 
 	//Load initial data
-	m.Domains = m.persistenceDriver.LoadAllDomains()
-	m.Services = m.persistenceDriver.LoadAllServices()
+	domains , err := m.persistenceDriver.LoadAllDomains()
+	if err != nil {
+		return err
+	}
+	m.Domains = domains
+
+
+	services, err := m.persistenceDriver.LoadAllServices()
+	if err != nil {
+		return err
+	}
+	m.Services = services
 
 	go func() {
 		m.handlePersistenceModelEventOn(m.persistenceDriver.Listen())
@@ -42,6 +59,8 @@ func (m *Model) Init() {
 	go func() {
 		m.handlePersistenceModelEventOn(m.serviceDriver.Listen())
 	}()
+
+	return nil
 
 }
 
@@ -171,21 +190,32 @@ func (m *Model) handlePersistenceModelEventOn(eventStream chan *ModelEvent) {
 }
 
 func (m *Model) onRancherInfo(info *RancherInfoType) {
-	log.Info(info.String())
 	sc := m.Services[info.EnvironmentName]
 	if sc != nil {
 		for _,service := range sc.GetInstances() {
 			service.Config.RancherInfo = info
-			service.Location = info.Location
+
+			if(!service.Location.Equals(info.Location)) {
+				log.Infof("Service %s changed location from %s to %s", service.Name, service.Location, info.Location)
+				service.Location = info.Location
+
+			}
+
+			computedSatus := service.Status.Compute()
 			service.Status.Current = info.CurrentStatus
 			if(service.Status.Current == STARTED_STATUS) {
 				service.Status.Alive = "1"
 			} else {
 				service.Status.Alive = ""
 			}
+			if(computedSatus != service.Status.Compute()) {
+				log.Infof("Service %s changed its status to : %s", service.Name, service.Status.Compute())
+			}
+
 			_, err := m.persistenceDriver.PersistService(service)
 			if(err!= nil) {
-				log.Errorf("Error when persisting : %s", err.Error())
+				log.Errorf("Error when persisting rancher update : %s", err.Error())
+				log.Errorf("Rancher update was : %s" , info)
 			}
 		}
 	}

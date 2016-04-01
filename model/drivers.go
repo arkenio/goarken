@@ -19,13 +19,13 @@ type ServiceDriver interface {
 
 
 type PersistenceDriver interface  {
-	LoadAllServices() map[string]*ServiceCluster
-	LoadService(serviceName string) *ServiceCluster
+	LoadAllServices() (map[string]*ServiceCluster,error)
+	LoadService(serviceName string) (*ServiceCluster,error)
 	PersistService(*Service) (*Service, error)
 	DestroyService(*ServiceCluster) error
 
-	LoadAllDomains() map[string]*Domain
-	LoadDomain(serviceName string) *Domain
+	LoadAllDomains() (map[string]*Domain,error)
+	LoadDomain(serviceName string) (*Domain,error)
 	PersistDomain(*Domain) (*Domain, error)
 	DestroyDomain(*Domain) error
 

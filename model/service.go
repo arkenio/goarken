@@ -29,6 +29,10 @@ func (s *Location) IsFullyDefined() bool {
 
 }
 
+func (s Location) String() string {
+		return fmt.Sprintf("%s:%d", s.Host, s.Port)
+}
+
 type ServiceConfig struct {
 	Robots      string `json:"robots"`
 	Environment map[string]interface{}
@@ -40,14 +44,12 @@ type RancherInfoType struct {
 	EnvironmentId   string
 	EnvironmentName string
 	Location        *Location
+	HealthState		string
 	CurrentStatus   string
 }
 
-func (r *RancherInfoType) String() string {
-	if r == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("RancherInfo for %s : envId: %s, location: %s, currentStatus: %s", r.EnvironmentName, r.EnvironmentId, r.Location, r.CurrentStatus)
+func (r RancherInfoType) String() string {
+	return fmt.Sprintf("RancherInfo for %s : envId: %s, location: %s, currentStatus: %s, rancherHealth: %s", r.EnvironmentName, r.EnvironmentId, r.Location, r.CurrentStatus, r.HealthState)
 }
 
 type FleetInfoType struct {

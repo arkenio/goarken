@@ -17,7 +17,7 @@ import (
 
 var (
 	log               = logrus.New()
-	rancherHostRegexp = regexp.MustCompile(".*/projects/(.*)")
+	rancherHostRegexp = regexp.MustCompile("http.*/projects/(.*)")
 )
 
 type RancherServiceDriver struct {
@@ -43,25 +43,33 @@ func NewRancherServiceDriver(rancherHost string, rancherAccessKey string, ranche
 	}
 
 	c, _, err := getRancherSocket(rancherClient)
+	if err != nil {
+		return nil, err
+	}
 	go sd.watch(c)
 
 	return sd, nil
 
 }
 
-func getProjectIdFromRancherHost(host string) {
-
+func getProjectIdFromRancherHost(host string) string {
+	matches := rancherHostRegexp.FindStringSubmatch(host)
+	if len(matches) > 1 {
+		return matches[1]
+	} else {
+		return ""
+	}
 }
 
 func getRancherSocket(r *client.RancherClient) (*websocket.Conn, *http.Response, error) {
 	rancherUrl, _ := url.Parse(r.Opts.Url)
 
-	//TODO extract projectId from rancherHost
+	projectId := getProjectIdFromRancherHost(r.Opts.Url)
 	u := url.URL{
 		Scheme:   "ws",
 		Host:     rancherUrl.Host,
 		Path:     "/v1/subscribe",
-		RawQuery: "eventNames=resource.change&include=hosts&include=instances&include=instance&include=instanceLinks&include=ipAddresses&projectId=1a5",
+		RawQuery: fmt.Sprintf("eventNames=resource.change&include=hosts&include=instances&include=instance&include=instanceLinks&include=ipAddresses&projectId=%s", projectId),
 	}
 
 	header := http.Header{
@@ -93,10 +101,12 @@ func (r *RancherServiceDriver) watch(c *websocket.Conn) {
 				if err != nil {
 					log.Printf(err.Error())
 				} else {
+					//TODO : detect wich service of the stack must be proxied by gogeta by iterating over containers labels
 					info := &RancherInfoType{
 						EnvironmentId:   publish.ResourceId,
 						EnvironmentName: result.Name,
 						Location:        &Location{Host: fmt.Sprintf("lb.%s", result.Name), Port: 80},
+						HealthState:	result.HealthState,
 						CurrentStatus:   convertRancherHealthToStatus(result.HealthState),
 					}
 

@@ -470,7 +470,7 @@ func NewStatus(service *Service, node *etcd.Node) *Status {
 	return status
 }
 
-func (w *Watcher) LoadAllServices() map[string]*ServiceCluster {
+func (w *Watcher) LoadAllServices() (map[string]*ServiceCluster, error) {
 	result := make(map[string]*ServiceCluster)
 
 	response, err := w.client.Get(w.servicePrefix, true, true)
@@ -479,17 +479,19 @@ func (w *Watcher) LoadAllServices() map[string]*ServiceCluster {
 			sc := getServiceClusterFromNode(serviceNode)
 			result[sc.Name] = sc
 		}
+	} else {
+		return nil, err
 	}
-	return result
+	return result, nil
 }
 
-func (w *Watcher) LoadService(serviceName string) *ServiceCluster {
+func (w *Watcher) LoadService(serviceName string) (*ServiceCluster, error) {
 
 	response, err := w.client.Get(computeClusterKey(serviceName, w.servicePrefix), true, true)
 	if err != nil {
-		return nil
+		return nil, err
 	} else {
-		return getServiceClusterFromNode(response.Node)
+		return getServiceClusterFromNode(response.Node), nil
 	}
 
 }
@@ -500,7 +502,7 @@ func (w *Watcher) DestroyService(sc *ServiceCluster) error {
 	return err
 }
 
-func (w *Watcher) LoadAllDomains() map[string]*Domain {
+func (w *Watcher) LoadAllDomains() (map[string]*Domain, error) {
 
 	result := make(map[string]*Domain)
 
@@ -512,16 +514,18 @@ func (w *Watcher) LoadAllDomains() map[string]*Domain {
 				result[domain.Name] = domain
 			}
 		}
+	} else {
+		return nil, err
 	}
-	return result
+	return result, nil
 }
-func (w *Watcher) LoadDomain(domainName string) *Domain {
+func (w *Watcher) LoadDomain(domainName string) (*Domain, error) {
 	response, err := w.client.Get(computeDomainNodeKey(domainName, w.domainPrefix), true, true)
 	if err != nil {
-		return nil
+		return nil, err
 	} else {
 		domain, _ :=NewDomain(response.Node)
-		return domain
+		return domain, nil
 	}
 
 }
