@@ -7,7 +7,6 @@ import (
 	"github.com/arkenio/goarken/model"
 	. "github.com/arkenio/goarken/model"
 	"github.com/coreos/go-etcd/etcd"
-	"github.com/golang/glog"
 	"regexp"
 	"strconv"
 	"strings"
@@ -78,7 +77,7 @@ func (w *Watcher) doWatch(etcdDir string, registerFunc func(*etcd.Node, string))
 	stop := make(chan struct{})
 
 	for {
-		glog.Infof("Start watching %s", etcdDir)
+		log.Infof("Start watching %s", etcdDir)
 
 		updateChannel := make(chan *etcd.Response, 10)
 		go w.watch(updateChannel, stop, etcdDir, registerFunc)
@@ -88,8 +87,8 @@ func (w *Watcher) doWatch(etcdDir string, registerFunc func(*etcd.Node, string))
 		//If we are here, this means etcd watch ended in an error
 		stop <- struct{}{}
 		w.client.CloseCURL()
-		glog.Warningf("Error when watching %s : %v", etcdDir, err)
-		glog.Warningf("Waiting 1 second and relaunch watch")
+		log.Warningf("Error when watching %s : %v", etcdDir, err)
+		log.Warningf("Waiting 1 second and relaunch watch")
 		time.Sleep(time.Second)
 
 	}
@@ -110,7 +109,7 @@ func (w *Watcher) watch(updateChannel chan *etcd.Response, stop chan struct{}, k
 	for {
 		select {
 		case <-stop:
-			glog.Warningf("Gracefully closing the etcd watch for %s", key)
+			log.Warningf("Gracefully closing the etcd watch for %s", key)
 			return
 		case response := <-updateChannel:
 			if response != nil {
@@ -181,7 +180,7 @@ func (w *Watcher) registerDomain(node *etcd.Node, action string) {
 
 		if domain.Typ != "" && domain.Value != "" { // && !domain.Equals(actualDomain) {
 			//w.model.Domains[domainName] = domain
-			glog.Infof("Registered domain %s with (%s) %s", domainName, domain.Typ, domain.Value)
+			log.Infof("Registered domain %s with (%s) %s", domainName, domain.Typ, domain.Value)
 
 			//Broadcast the updated domain
 			w.broadcaster.Write(model.NewModelEvent("update", domain))
@@ -246,9 +245,9 @@ func (w *Watcher) registerService(node *etcd.Node, action string) {
 				if !actualEnv.Equals(service) {
 					w.model.Services[serviceName].Add(service)
 					if service.Location.Host != "" && service.Location.Port != 0 {
-						glog.Infof("Registering service %s with location : http://%s:%d/", serviceName, service.Location.Host, service.Location.Port)
+						log.Infof("Registering service %s with location : http://%s:%d/", serviceName, service.Location.Host, service.Location.Port)
 					} else {
-						glog.Infof("Registering service %s without location", serviceName)
+						log.Infof("Registering service %s without location", serviceName)
 					}
 					//Broadcast the updated object
 				w.broadcaster.Write(w.model.Services[serviceName])
@@ -257,7 +256,7 @@ func (w *Watcher) registerService(node *etcd.Node, action string) {
 		}*/
 
 	} else {
-		glog.Errorf("Unable to get information for service %s from etcd", serviceName)
+		log.Errorf("Unable to get information for service %s from etcd", serviceName)
 	}
 }
 
@@ -313,7 +312,7 @@ func newService(serviceNode *etcd.Node) (*Service, error) {
 			lastAccess := node.Value
 			lastAccessTime, err := time.Parse(TIME_FORMAT, lastAccess)
 			if err != nil {
-				glog.Errorf("Error parsing last access date with service %s: %s", service.Name, err)
+				log.Errorf("Error parsing last access date with service %s: %s", service.Name, err)
 				break
 			}
 			service.LastAccess = &lastAccessTime

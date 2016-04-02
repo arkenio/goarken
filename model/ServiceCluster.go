@@ -2,7 +2,6 @@ package model
 
 import (
 	"errors"
-	"github.com/golang/glog"
 	"sync"
 )
 
@@ -35,7 +34,7 @@ func (cl *ServiceCluster) Next() (*Service, error) {
 		cl.lastIndex = index
 
 		instance = cl.Instances[index]
-		glog.V(5).Infof("Checking instance %d Status : %s", index, instance.Status.Compute())
+		log.Debugf("Checking instance %d Status : %s", index, instance.Status.Compute())
 		if instance.Status.Compute() == STARTED_STATUS && instance.Location.IsFullyDefined() {
 			return instance, nil
 		}
@@ -46,18 +45,18 @@ func (cl *ServiceCluster) Next() (*Service, error) {
 
 	if lastStatus == nil && !instance.Location.IsFullyDefined() {
 		// Generates too much garbage
-		glog.V(5).Infof("No Status and no location for %s", instance.Name)
+		log.Debugf("No Status and no location for %s", instance.Name)
 		return nil, StatusError{ERROR_STATUS, lastStatus}
 	}
 
-	glog.V(5).Infof("No instance started for %s", instance.Name)
+	log.Debugf("No instance started for %s", instance.Name)
 	if lastStatus != nil {
-		glog.V(5).Infof("Last Status :")
-		glog.V(5).Infof("   current  : %s", lastStatus.Current)
-		glog.V(5).Infof("   expected : %s", lastStatus.Expected)
-		glog.V(5).Infof("   alive : %s", lastStatus.Alive)
+		log.Debugf("Last Status :")
+		log.Debugf("   current  : %s", lastStatus.Current)
+		log.Debugf("   expected : %s", lastStatus.Expected)
+		log.Debugf("   alive : %s", lastStatus.Alive)
 	} else {
-		glog.V(5).Infof("No status available")
+		log.Debugf("No status available")
 	}
 
 	return nil, StatusError{instance.Status.Compute(), lastStatus}
@@ -100,7 +99,7 @@ func (cl *ServiceCluster) Add(service *Service) {
 
 func (cl *ServiceCluster) Dump(action string) {
 	for _, v := range cl.Instances {
-		glog.Infof("Dump after %s %s -> %s:%d", action, v.Index, v.Location.Host, v.Location.Port)
+		log.Debugf("Dump after %s %s -> %s:%d", action, v.Index, v.Location.Host, v.Location.Port)
 	}
 }
 

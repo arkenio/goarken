@@ -68,7 +68,7 @@ func IT_EtcdWatcher(t *testing.T) {
 		client.Delete("/services", true)
 
 		pd := storage.NewWatcher(client, "/services", "/domains")
-		model = NewArkenModel(sd, pd)
+		model,_ = NewArkenModel(sd, pd)
 
 		Convey("When i create a service", func() {
 			initialCreateCount := sd.calls["create"]

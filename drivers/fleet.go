@@ -10,7 +10,6 @@ import (
 	"strings"
 	"errors"
 	"fmt"
-	"github.com/golang/glog"
 )
 
 
@@ -42,7 +41,7 @@ func (f *FleetServiceDriver) Stop(s *Service) (interface{},error) {
 
 
 func (f *FleetServiceDriver) Passivate(s *Service) (interface{},error) {
-	glog.Info(fmt.Sprintf("Passivating service %s",s.Name))
+	log.Info(fmt.Sprintf("Passivating service %s",s.Name))
 	err := f.fleetcmd(s, "destroy", f.client)
 	if err != nil {
 		return s,err
@@ -52,12 +51,12 @@ func (f *FleetServiceDriver) Passivate(s *Service) (interface{},error) {
 
 	responseCurrent, error := f.client.Set(statusKey+"/current", PASSIVATED_STATUS, 0)
 	if error != nil && responseCurrent == nil {
-		glog.Errorf("Setting status current to 'passivated' has failed for Service "+s.Name+": %s", error)
+		log.Errorf("Setting status current to 'passivated' has failed for Service "+s.Name+": %s", error)
 	}
 
 	response, error := f.client.Set(statusKey+"/expected", PASSIVATED_STATUS, 0)
 	if error != nil && response == nil {
-		glog.Errorf("Setting status expected to 'passivated' has failed for Service "+s.Name+": %s", error)
+		log.Errorf("Setting status expected to 'passivated' has failed for Service "+s.Name+": %s", error)
 	}
 	return s, nil
 }
