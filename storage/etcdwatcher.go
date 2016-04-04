@@ -74,7 +74,7 @@ func (w *Watcher) Init() {
 func createDirIfNotExist(dir string, client *etcd.Client) {
 	_, err := client.Get(dir,false,false)
 	if err != nil {
-		client.AddChildDir(dir, 0)
+		client.CreateDir(dir, 0)
 	}
 }
 
