@@ -3,16 +3,18 @@ package drivers
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/Sirupsen/logrus"
 	. "github.com/arkenio/goarken/model"
 	"github.com/gorilla/websocket"
 	"github.com/mitchellh/mapstructure"
 	"github.com/rancher/go-rancher/client"
-	"io/ioutil"
+	catalogclient "github.com/dmetzler/go-ranchercatalog/client"
 	"net/http"
 	"net/url"
 	"regexp"
+	"strings"
 )
 
 var (
@@ -23,15 +25,22 @@ var (
 type RancherServiceDriver struct {
 	rancherClient *client.RancherClient
 	broadcaster   *Broadcaster
+	rancherCatClient *catalogclient.RancherCatalogClient
 }
 
 func NewRancherServiceDriver(rancherHost string, rancherAccessKey string, rancherSecretKey string) (*RancherServiceDriver, error) {
 
-	rancherClient, err := client.NewRancherClient(&client.ClientOpts{
+	clientOpts := &client.ClientOpts{
 		Url:       rancherHost,
 		AccessKey: rancherAccessKey,
 		SecretKey: rancherSecretKey,
-	})
+	}
+
+	rancherClient, err := client.NewRancherClient(clientOpts)
+
+	rancherCatClient, err := catalogclient.NewRancherCatalogClient(clientOpts)
+
+
 
 	if err != nil {
 		return nil, err
@@ -40,7 +49,9 @@ func NewRancherServiceDriver(rancherHost string, rancherAccessKey string, ranche
 	sd := &RancherServiceDriver{
 		rancherClient,
 		NewBroadcaster(),
+		rancherCatClient,
 	}
+
 
 	c, _, err := getRancherSocket(rancherClient)
 	if err != nil {
@@ -51,6 +62,8 @@ func NewRancherServiceDriver(rancherHost string, rancherAccessKey string, ranche
 	return sd, nil
 
 }
+
+
 
 func getProjectIdFromRancherHost(host string) string {
 	matches := rancherHostRegexp.FindStringSubmatch(host)
@@ -106,7 +119,7 @@ func (r *RancherServiceDriver) watch(c *websocket.Conn) {
 						EnvironmentId:   publish.ResourceId,
 						EnvironmentName: result.Name,
 						Location:        &Location{Host: fmt.Sprintf("lb.%s", result.Name), Port: 80},
-						HealthState:	result.HealthState,
+						HealthState:     result.HealthState,
 						CurrentStatus:   convertRancherHealthToStatus(result.HealthState),
 					}
 
@@ -134,14 +147,26 @@ func convertRancherHealthToStatus(health string) string {
 
 func (r *RancherServiceDriver) Create(s *Service, startOnCreate bool) (interface{}, error) {
 
+	info := s.Config.RancherInfo
+
+	if info.TemplateId {
+		return nil, errors.New("Rancher template has to be specified !")
+	}
+
+	template,err := r.rancherCatClient.TemplateVersion.ById(info.TemplateId)
+	if err != nil {
+		return nil, errors.New("Rancher template not found")
+	}
+
 	//Start rancher environment
 	env := &client.Environment{}
 	env.StartOnCreate = startOnCreate
 	env.Name = s.Name
 	env.Environment = s.Config.Environment
-	fillCompose(env)
+	env.DockerCompose = template.Files["docker-compose.yml"]
+	env.RancherCompose = template.Files["rancher-compose.yml"]
 
-	env, err := r.rancherClient.Environment.Create(env)
+	env, err = r.rancherClient.Environment.Create(env)
 
 	check(err)
 
@@ -149,16 +174,6 @@ func (r *RancherServiceDriver) Create(s *Service, startOnCreate bool) (interface
 
 }
 
-func fillCompose(env *client.Environment) {
-	dat, err := ioutil.ReadFile("/Users/dmetzler/src/github.com/dmetzler/community-catalog/templates/nuxeo/0/docker-compose.yml")
-	check(err)
-	env.DockerCompose = string(dat)
-
-	dat, err = ioutil.ReadFile("/Users/dmetzler/src/github.com/dmetzler/community-catalog/templates/nuxeo/0/rancher-compose.yml")
-	check(err)
-	env.RancherCompose = string(dat)
-
-}
 
 func (r *RancherServiceDriver) Start(s *Service) (interface{}, error) {
 	rancherId := s.Config.RancherInfo.EnvironmentId

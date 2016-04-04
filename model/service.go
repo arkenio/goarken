@@ -1,9 +1,9 @@
 package model
 
 import (
+	"fmt"
 	"github.com/Sirupsen/logrus"
 	"time"
-	"fmt"
 )
 
 type Location struct {
@@ -30,7 +30,7 @@ func (s *Location) IsFullyDefined() bool {
 }
 
 func (s Location) String() string {
-		return fmt.Sprintf("%s:%d", s.Host, s.Port)
+	return fmt.Sprintf("%s:%d", s.Host, s.Port)
 }
 
 type ServiceConfig struct {
@@ -44,8 +44,11 @@ type RancherInfoType struct {
 	EnvironmentId   string
 	EnvironmentName string
 	Location        *Location
-	HealthState		string
+	HealthState     string
 	CurrentStatus   string
+	CatalogId       string
+	TemplateId      string
+	VersionId       string
 }
 
 func (r RancherInfoType) String() string {
