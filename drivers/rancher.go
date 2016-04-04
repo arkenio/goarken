@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
-	"strings"
 )
 
 var (
@@ -36,9 +35,14 @@ func NewRancherServiceDriver(rancherHost string, rancherAccessKey string, ranche
 		SecretKey: rancherSecretKey,
 	}
 
-	rancherClient, err := client.NewRancherClient(clientOpts)
+	catalaogClientOpts := & catalogclient.ClientOpts{
+		Url: clientOpts.Url,
+		AccessKey: clientOpts.AccessKey,
+		SecretKey: clientOpts.SecretKey,
+	}
 
-	rancherCatClient, err := catalogclient.NewRancherCatalogClient(clientOpts)
+	rancherClient, err := client.NewRancherClient(clientOpts)
+	rancherCatClient, err := catalogclient.NewRancherCatalogClient(catalaogClientOpts)
 
 
 
@@ -149,7 +153,7 @@ func (r *RancherServiceDriver) Create(s *Service, startOnCreate bool) (interface
 
 	info := s.Config.RancherInfo
 
-	if info.TemplateId {
+	if info.TemplateId == "" {
 		return nil, errors.New("Rancher template has to be specified !")
 	}
 
@@ -163,8 +167,8 @@ func (r *RancherServiceDriver) Create(s *Service, startOnCreate bool) (interface
 	env.StartOnCreate = startOnCreate
 	env.Name = s.Name
 	env.Environment = s.Config.Environment
-	env.DockerCompose = template.Files["docker-compose.yml"]
-	env.RancherCompose = template.Files["rancher-compose.yml"]
+	env.DockerCompose = extractFileContent(template,"docker-compose.yml")
+	env.RancherCompose = extractFileContent(template,"rancher-compose.yml")
 
 	env, err = r.rancherClient.Environment.Create(env)
 
@@ -172,6 +176,13 @@ func (r *RancherServiceDriver) Create(s *Service, startOnCreate bool) (interface
 
 	return &RancherInfoType{EnvironmentId: env.Id}, nil
 
+}
+
+func extractFileContent(template *catalogclient.TemplateVersion, filename string) string {
+	if content,ok := template.Files[filename].(string); ok {
+		return content
+	}
+	return ""
 }
 
 
