@@ -159,7 +159,7 @@ func (r *RancherServiceDriver) Create(s *Service, startOnCreate bool) (interface
 
 	template,err := r.rancherCatClient.TemplateVersion.ById(info.TemplateId)
 	if err != nil {
-		return nil, errors.New("Rancher template not found")
+		return nil, errors.New("Rancher template not found : " + err.Error())
 	}
 
 	//Start rancher environment
@@ -172,7 +172,10 @@ func (r *RancherServiceDriver) Create(s *Service, startOnCreate bool) (interface
 
 	env, err = r.rancherClient.Environment.Create(env)
 
-	check(err)
+	if err != nil {
+		return nil, errors.New("Error when creating service on Rancher side: " + err.Error())
+	}
+
 
 	return &RancherInfoType{EnvironmentId: env.Id}, nil
 
@@ -189,7 +192,9 @@ func extractFileContent(template *catalogclient.TemplateVersion, filename string
 func (r *RancherServiceDriver) Start(s *Service) (interface{}, error) {
 	rancherId := s.Config.RancherInfo.EnvironmentId
 	env, err := r.rancherClient.Environment.ById(rancherId)
-	check(err)
+	if err != nil {
+		return nil, err
+	}
 	env, err = r.rancherClient.Environment.ActionActivateservices(env)
 	return s, err
 }
@@ -197,7 +202,9 @@ func (r *RancherServiceDriver) Start(s *Service) (interface{}, error) {
 func (r *RancherServiceDriver) Stop(s *Service) (interface{}, error) {
 	rancherId := s.Config.RancherInfo.EnvironmentId
 	env, err := r.rancherClient.Environment.ById(rancherId)
-	check(err)
+	if err != nil {
+		return nil, err
+	}
 	env, err = r.rancherClient.Environment.ActionDeactivateservices(env)
 	return s, err
 }
@@ -205,17 +212,12 @@ func (r *RancherServiceDriver) Stop(s *Service) (interface{}, error) {
 func (r *RancherServiceDriver) Destroy(s *Service) error {
 	rancherId := s.Config.RancherInfo.EnvironmentId
 	env, err := r.rancherClient.Environment.ById(rancherId)
-	check(err)
+	if err != nil {
+		return err
+	}
 	return r.rancherClient.Environment.Delete(env)
 }
 
-func check(e error) {
-	if e != nil {
-		log := logrus.New()
-		log.Info("error: ", e.Error())
-		panic(e)
-	}
-}
 
 func (r *RancherServiceDriver) Listen() chan *ModelEvent {
 	return FromInterfaceChannel(r.broadcaster.Listen())
