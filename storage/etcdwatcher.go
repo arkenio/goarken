@@ -55,6 +55,12 @@ func (w *Watcher) Init() {
 	setDomainPrefix(w.domainPrefix)
 	SetServicePrefix(w.servicePrefix)
 
+
+	//Create prefix dir if they do not exist
+	createDirIfNotExist(w.servicePrefix, w.client)
+	createDirIfNotExist(w.domainPrefix, w.client)
+
+
 	if w.domainPrefix != "" {
 		go w.doWatch(w.domainPrefix, w.registerDomain)
 	}
@@ -62,6 +68,14 @@ func (w *Watcher) Init() {
 		go w.doWatch(w.servicePrefix, w.registerService)
 	}
 
+}
+
+
+func createDirIfNotExist(dir string, client *etcd.Client) {
+	_, err := client.Get(dir,false,false)
+	if err != nil {
+		client.AddChildDir(dir, 0)
+	}
 }
 
 func (w *Watcher) Listen() chan *model.ModelEvent {
