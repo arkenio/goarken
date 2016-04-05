@@ -65,11 +65,11 @@ func (m *Model) Init() error{
 
 }
 
-func (m *Model) CreateService(s *Service, startOnCreate bool) (*Service, error) {
+func (m *Model) CreateService(service *Service, startOnCreate bool) (*Service, error) {
 
-	s, err := m.persistenceDriver.PersistService(s)
+	s, err := m.persistenceDriver.PersistService(service)
 	if err != nil {
-		return nil,errors.New(fmt.Sprintf("Unable to persist service %s in etcd : %s",s.Name, err.Error()))
+		return nil,errors.New(fmt.Sprintf("Unable to persist service %s in etcd : %s",service.Name, err.Error()))
 	}
 
 	if m.serviceDriver != nil {
