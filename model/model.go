@@ -2,6 +2,7 @@ package model
 import (
 	"github.com/Sirupsen/logrus"
 	"errors"
+	"fmt"
 )
 
 
@@ -68,13 +69,13 @@ func (m *Model) CreateService(s *Service, startOnCreate bool) (*Service, error) 
 
 	s, err := m.persistenceDriver.PersistService(s)
 	if err != nil {
-		return nil,err
+		return nil,errors.New(fmt.Sprintf("Unable to persist service %s in etcd : %s",s.Name, err.Error()))
 	}
 
 	if m.serviceDriver != nil {
 		info, err := m.serviceDriver.Create(s, startOnCreate)
 		if err != nil {
-			return nil, err
+			return nil,errors.New(fmt.Sprintf("Unable to create service in backend : %s",s.Name, err.Error()))
 		}
 
 		m.updateInfoFromDriver(s, info)
