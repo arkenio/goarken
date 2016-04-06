@@ -21,4 +21,5 @@ gogeta
 tmp
 _testmain.go
 goarken
+vendor
 *.exe

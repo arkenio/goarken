@@ -3,10 +3,13 @@ package main
 import (
 	. "github.com/arkenio/goarken/model"
 	"github.com/arkenio/goarken/storage"
-	"github.com/coreos/go-etcd/etcd"
 	. "github.com/smartystreets/goconvey/convey"
-	"os"
+	"github.com/coreos/etcd/client"
+	"github.com/coreos/etcd/integration"
+	"github.com/coreos/etcd/pkg/testutil"
+	"golang.org/x/net/context"
 	"testing"
+	"time"
 )
 
 type MockServiceDriver struct {
@@ -53,21 +56,38 @@ func (w *MockServiceDriver) StopDriver() {
 
 }
 
-func Test_EtcdWatcher(t *testing.T) {
-	if os.Getenv("IT_Test") != "" {
-		IT_EtcdWatcher(t)
-	}
-}
 
-func IT_EtcdWatcher(t *testing.T) {
+func Test_EtcdWatcher(t *testing.T) {
+
+	defer testutil.AfterTest(t)
+	cl := integration.NewCluster(t, 1)
+	cl.Launch(t)
+	defer cl.Terminate(t)
+
+	u := cl.URL(0)
+
+	cfg := client.Config{
+		Endpoints:               []string{u},
+		Transport:               client.DefaultTransport,
+		HeaderTimeoutPerRequest: time.Second,
+	}
+	c, err := client.New(cfg)
+	kapi := client.NewKeysAPI(c)
+	if err != nil {
+		panic(err)
+	}
+
+
+
 	var model *Model
-	client := etcd.NewClient([]string{})
+
+
 	sd := NewMockServiceDriver()
 	Convey("Given a model", t, func() {
-		client.Delete("/domains", true)
-		client.Delete("/services", true)
+		kapi.Delete(context.Background(),"/domains", &client.DeleteOptions{Recursive:true})
+		kapi.Delete(context.Background(),"/services", &client.DeleteOptions{Recursive:true})
 
-		pd := storage.NewWatcher(client, "/services", "/domains")
+		pd := storage.NewWatcher(kapi, "/services", "/domains")
 		model,_ = NewArkenModel(sd, pd)
 
 		Convey("When i create a service", func() {

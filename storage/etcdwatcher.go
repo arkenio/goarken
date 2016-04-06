@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"github.com/arkenio/goarken/model"
 	. "github.com/arkenio/goarken/model"
-	"github.com/coreos/go-etcd/etcd"
+	etcd "github.com/coreos/etcd/client"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
-//	"github.com/Sirupsen/logrus"
 	"github.com/Sirupsen/logrus"
+	"golang.org/x/net/context"
 )
 
 const (
@@ -23,22 +23,22 @@ const (
 var (
 	domainRegexp  = regexp.MustCompile("/domain/(.*)(/.*)*")
 	serviceRegexp = regexp.MustCompile("/services/(.*)(/.*)*")
-	log = logrus.New()
+	log           = logrus.New()
 )
 
 // A Watcher loads and watch the etcd hierarchy for Domains and Services and
 // updates the model according to etcd updates.
 type Watcher struct {
-	client        *etcd.Client
+	kapi          etcd.KeysAPI
 	broadcaster   *Broadcaster
 	servicePrefix string
 	domainPrefix  string
 }
 
-func NewWatcher(client *etcd.Client, servicePrefix string, domainPrefix string) *Watcher {
+func NewWatcher(client etcd.KeysAPI, servicePrefix string, domainPrefix string) *Watcher {
 
 	watcher := &Watcher{
-		client:        client,
+		kapi:          client,
 		broadcaster:   NewBroadcaster(),
 		servicePrefix: servicePrefix,
 		domainPrefix:  domainPrefix,
@@ -55,11 +55,9 @@ func (w *Watcher) Init() {
 	setDomainPrefix(w.domainPrefix)
 	SetServicePrefix(w.servicePrefix)
 
-
 	//Create prefix dir if they do not exist
-	createDirIfNotExist(w.servicePrefix, w.client)
-	createDirIfNotExist(w.domainPrefix, w.client)
-
+	createDirIfNotExist(w.servicePrefix, w.kapi)
+	createDirIfNotExist(w.domainPrefix, w.kapi)
 
 	if w.domainPrefix != "" {
 		go w.doWatch(w.domainPrefix, w.registerDomain)
@@ -70,11 +68,11 @@ func (w *Watcher) Init() {
 
 }
 
+func createDirIfNotExist(dir string, kapi etcd.KeysAPI) {
 
-func createDirIfNotExist(dir string, client *etcd.Client) {
-	_, err := client.Get(dir,false,false)
+	_, err := kapi.Get(context.Background(), dir, nil)
 	if err != nil {
-		client.CreateDir(dir, 0)
+		kapi.Set(context.Background(), dir, "", &etcd.SetOptions{PrevExist: etcd.PrevNoExist, Dir: true})
 	}
 }
 
@@ -82,26 +80,27 @@ func (w *Watcher) Listen() chan *model.ModelEvent {
 
 	return FromInterfaceChannel(w.broadcaster.Listen())
 
-
 }
 
 // Loads and watch an etcd directory to register objects like Domains, Services
 // etc... The register function is passed the etcd Node that has been loaded.
 func (w *Watcher) doWatch(etcdDir string, registerFunc func(*etcd.Node, string)) {
-	stop := make(chan struct{})
 
 	for {
 		log.Infof("Start watching %s", etcdDir)
 
-		updateChannel := make(chan *etcd.Response, 10)
-		go w.watch(updateChannel, stop, etcdDir, registerFunc)
+		watcher := w.kapi.Watcher(etcdDir, &etcd.WatcherOptions{Recursive: true})
 
-		_, err := w.client.Watch(etcdDir, (uint64)(0), true, updateChannel, nil)
+		for {
+			resp, err := watcher.Next(context.Background())
+			if err == nil {
+				registerFunc(resp.Node, resp.Action)
+			} else {
+				log.Warningf("Error when watching %s : %v", etcdDir, err)
+				break
+			}
+		}
 
-		//If we are here, this means etcd watch ended in an error
-		stop <- struct{}{}
-		w.client.CloseCURL()
-		log.Warningf("Error when watching %s : %v", etcdDir, err)
 		log.Warningf("Waiting 1 second and relaunch watch")
 		time.Sleep(time.Second)
 
@@ -110,25 +109,11 @@ func (w *Watcher) doWatch(etcdDir string, registerFunc func(*etcd.Node, string))
 }
 
 func (w *Watcher) loadPrefix(etcDir string, registerFunc func(*etcd.Node, string)) {
-	response, err := w.client.Get(etcDir, true, true)
+	response, err := w.kapi.Get(context.Background(), etcDir, &etcd.GetOptions{Recursive: true})
 	if err == nil {
 		for _, serviceNode := range response.Node.Nodes {
 			registerFunc(serviceNode, response.Action)
 
-		}
-	}
-}
-
-func (w *Watcher) watch(updateChannel chan *etcd.Response, stop chan struct{}, key string, registerFunc func(*etcd.Node, string)) {
-	for {
-		select {
-		case <-stop:
-			log.Warningf("Gracefully closing the etcd watch for %s", key)
-			return
-		case response := <-updateChannel:
-			if response != nil {
-				registerFunc(response.Node, response.Action)
-			}
 		}
 	}
 }
@@ -143,13 +128,13 @@ func (w *Watcher) watch(updateChannel chan *etcd.Response, stop chan struct{}, k
 //	return GetDomainFromNode(response.Node), nil
 //}
 
-func GetDomainFromNode(node *etcd.Node) (*Domain,error) {
+func GetDomainFromNode(node *etcd.Node) (*Domain, error) {
 	return NewDomain(node)
 }
 
-func GetServiceClusterFromPath(serviceClusterPath string, client *etcd.Client) (*ServiceCluster, error) {
+func GetServiceClusterFromPath(serviceClusterPath string, kapi etcd.KeysAPI) (*ServiceCluster, error) {
 	// Get service's root node instead of changed node.
-	response, err := client.Get(serviceClusterPath, true, true)
+	response, err := kapi.Get(context.Background(), serviceClusterPath, &etcd.GetOptions{Recursive: true})
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("Unable to get information for service %s from etcd", serviceClusterPath))
 	}
@@ -185,7 +170,7 @@ func (w *Watcher) registerDomain(node *etcd.Node, action string) {
 	}
 
 	domainKey := w.domainPrefix + "/" + domainName
-	response, err := w.client.Get(domainKey, true, false)
+	response, err := w.kapi.Get(context.Background(), domainKey, &etcd.GetOptions{Recursive: false})
 
 	if err == nil {
 		domain, _ := NewDomain(response.Node)
@@ -224,7 +209,7 @@ func NewDomain(domainNode *etcd.Node) (*Domain, error) {
 			domain.Value = node.Value
 		}
 	}
-	return domain,nil
+	return domain, nil
 
 }
 
@@ -241,7 +226,7 @@ func (w *Watcher) registerService(node *etcd.Node, action string) {
 	}
 
 	// Get service's root node instead of changed node.
-	response, err := w.client.Get(w.servicePrefix+"/"+serviceName, true, true)
+	response, err := w.kapi.Get(context.Background(), w.servicePrefix+"/"+serviceName, &etcd.GetOptions{Recursive: true, Sort: true})
 
 	if err == nil {
 
@@ -341,8 +326,8 @@ func newService(serviceNode *etcd.Node) (*Service, error) {
 func (w *Watcher) PersistService(s *Service) (*Service, error) {
 	if s.NodeKey != "" {
 		log.Debugf("Persisting key %s ", s.NodeKey)
-		resp, err := w.client.Get(s.NodeKey, false, true)
-		if(err != nil) {
+		resp, err := w.kapi.Get(context.Background(), s.NodeKey, &etcd.GetOptions{Recursive: true, Sort: false})
+		if err != nil {
 			return nil, errors.New("No service with key " + s.NodeKey + " found in etcd")
 		}
 
@@ -351,39 +336,37 @@ func (w *Watcher) PersistService(s *Service) (*Service, error) {
 			return nil, err
 		} else {
 			if oldService.Status.Expected != s.Status.Expected {
-				_,err = w.client.Set(fmt.Sprintf("%s/status/expected", s.NodeKey), s.Status.Expected, 0)
+				_, err = w.kapi.Set(context.Background(), fmt.Sprintf("%s/status/expected", s.NodeKey), s.Status.Expected, nil)
 			}
 
-			if err == nil &&  oldService.Status.Current != s.Status.Current {
-				_,err =  w.client.Set(fmt.Sprintf("%s/status/current", s.NodeKey), s.Status.Current, 0)
+			if err == nil && oldService.Status.Current != s.Status.Current {
+				_, err = w.kapi.Set(context.Background(), fmt.Sprintf("%s/status/current", s.NodeKey), s.Status.Current, nil)
 			}
 
-			if err == nil &&  oldService.Status.Alive != s.Status.Alive {
-				_,err =  w.client.Set(fmt.Sprintf("%s/status/alive", s.NodeKey), s.Status.Alive, 0)
+			if err == nil && oldService.Status.Alive != s.Status.Alive {
+				_, err = w.kapi.Set(context.Background(), fmt.Sprintf("%s/status/alive", s.NodeKey), s.Status.Alive, nil)
 			}
-
 
 			bytes, err2 := json.Marshal(s.Location)
-			if err2 == nil &&  oldService.Location != s.Location{
-				_,err =  w.client.Set(fmt.Sprintf("%s/location", s.NodeKey), string(bytes), 0)
+			if err2 == nil && oldService.Location != s.Location {
+				_, err = w.kapi.Set(context.Background(), fmt.Sprintf("%s/location", s.NodeKey), string(bytes), nil)
 			} else {
 				err = err2
 			}
 
-
 			bytes, err2 = json.Marshal(s.Config)
 			if err2 == nil {
-				_, err = w.client.Set(fmt.Sprintf("%s/config/gogeta", s.NodeKey), string(bytes), 0)
-			}else {
+				_, err = w.kapi.Set(context.Background(), fmt.Sprintf("%s/config/gogeta", s.NodeKey), string(bytes), nil)
+			} else {
 				err = err2
 			}
 
 			if err == nil && oldService.Domain != s.Domain {
-				_,err = w.client.Set(fmt.Sprintf("%s/domain", s.NodeKey), s.Domain, 0)
+				_, err = w.kapi.Set(context.Background(), fmt.Sprintf("%s/domain", s.NodeKey), s.Domain, nil)
 			}
 
-			if(err != nil ) {
-				return nil,err
+			if err != nil {
+				return nil, err
 			}
 
 		}
@@ -391,23 +374,23 @@ func (w *Watcher) PersistService(s *Service) (*Service, error) {
 	} else {
 		s.NodeKey = computeNodeKey(s, w.servicePrefix)
 
-		_, err := w.client.Create(fmt.Sprintf("%s/status/expected", s.NodeKey), s.Status.Expected, 0)
+		_, err := w.kapi.Create(context.Background(), fmt.Sprintf("%s/status/expected", s.NodeKey), s.Status.Expected)
 		if err == nil {
-			_, err = w.client.Create(fmt.Sprintf("%s/status/current", s.NodeKey), s.Status.Current, 0)
+			_, err = w.kapi.Create(context.Background(), fmt.Sprintf("%s/status/current", s.NodeKey), s.Status.Current)
 		}
 		if err == nil {
 			bytes, err := json.Marshal(s.Config)
 			if err == nil {
-				_, err = w.client.Create(fmt.Sprintf("%s/config/gogeta", s.NodeKey), string(bytes), 0)
+				_, err = w.kapi.Create(context.Background(), fmt.Sprintf("%s/config/gogeta", s.NodeKey), string(bytes))
 			}
 		}
 		if err == nil {
-			_, err = w.client.Create(fmt.Sprintf("%s/domain", s.NodeKey), s.Domain, 0)
+			_, err = w.kapi.Create(context.Background(), fmt.Sprintf("%s/domain", s.NodeKey), s.Domain)
 		}
 
 		if err != nil {
 			//Rollback creation
-			w.client.Delete(s.NodeKey, true)
+			w.kapi.Delete(context.Background(), s.NodeKey, &etcd.DeleteOptions{Recursive: true})
 			return nil, err
 		}
 
@@ -486,7 +469,7 @@ func NewStatus(service *Service, node *etcd.Node) *Status {
 func (w *Watcher) LoadAllServices() (map[string]*ServiceCluster, error) {
 	result := make(map[string]*ServiceCluster)
 
-	response, err := w.client.Get(w.servicePrefix, true, true)
+	response, err := w.kapi.Get(context.Background(), w.servicePrefix, &etcd.GetOptions{Recursive: true, Sort: true})
 	if err == nil {
 		for _, serviceNode := range response.Node.Nodes {
 			sc := getServiceClusterFromNode(serviceNode)
@@ -500,7 +483,7 @@ func (w *Watcher) LoadAllServices() (map[string]*ServiceCluster, error) {
 
 func (w *Watcher) LoadService(serviceName string) (*ServiceCluster, error) {
 
-	response, err := w.client.Get(computeClusterKey(serviceName, w.servicePrefix), true, true)
+	response, err := w.kapi.Get(context.Background(), computeClusterKey(serviceName, w.servicePrefix), &etcd.GetOptions{Recursive: true, Sort: true})
 	if err != nil {
 		return nil, err
 	} else {
@@ -510,7 +493,7 @@ func (w *Watcher) LoadService(serviceName string) (*ServiceCluster, error) {
 }
 
 func (w *Watcher) DestroyService(sc *ServiceCluster) error {
-	_, err := w.client.Delete(computeClusterKey(sc.Name, w.servicePrefix), true)
+	_, err := w.kapi.Delete(context.Background(), computeClusterKey(sc.Name, w.servicePrefix), &etcd.DeleteOptions{Recursive: true})
 
 	return err
 }
@@ -519,7 +502,7 @@ func (w *Watcher) LoadAllDomains() (map[string]*Domain, error) {
 
 	result := make(map[string]*Domain)
 
-	response, err := w.client.Get(w.domainPrefix, true, true)
+	response, err := w.kapi.Get(context.Background(), w.domainPrefix, &etcd.GetOptions{Recursive:true, Sort: true})
 	if err == nil {
 		for _, domainNode := range response.Node.Nodes {
 			domain, err := NewDomain(domainNode)
@@ -533,11 +516,11 @@ func (w *Watcher) LoadAllDomains() (map[string]*Domain, error) {
 	return result, nil
 }
 func (w *Watcher) LoadDomain(domainName string) (*Domain, error) {
-	response, err := w.client.Get(computeDomainNodeKey(domainName, w.domainPrefix), true, true)
+	response, err := w.kapi.Get(context.Background(), computeDomainNodeKey(domainName, w.domainPrefix), &etcd.GetOptions{Recursive:true, Sort: true})
 	if err != nil {
 		return nil, err
 	} else {
-		domain, _ :=NewDomain(response.Node)
+		domain, _ := NewDomain(response.Node)
 		return domain, nil
 	}
 
@@ -546,32 +529,32 @@ func (w *Watcher) LoadDomain(domainName string) (*Domain, error) {
 func (w *Watcher) PersistDomain(d *Domain) (*Domain, error) {
 
 	if d.NodeKey != "" {
-		resp, err := w.client.Get(d.NodeKey, false, true)
+		resp, err := w.kapi.Get(context.Background(), d.NodeKey, &etcd.GetOptions{Recursive:true, Sort: false})
 
 		oldDomain, _ := NewDomain(resp.Node)
 		if err != nil {
 			return nil, err
 		} else {
 			if oldDomain.Typ != d.Typ {
-				w.client.Set(fmt.Sprintf("%s/type", d.NodeKey), d.Typ, 0)
+				w.kapi.Set(context.Background(), fmt.Sprintf("%s/type", d.NodeKey), d.Typ, &etcd.SetOptions{PrevExist: etcd.PrevExist})
 			}
 
 			if oldDomain.Value != d.Value {
-				w.client.Set(fmt.Sprintf("%s/value", d.NodeKey), d.Value, 0)
+				w.kapi.Set(context.Background(), fmt.Sprintf("%s/value", d.NodeKey), d.Value, &etcd.SetOptions{PrevExist: etcd.PrevExist})
 			}
 		}
 
 	} else {
 
 		d.NodeKey = computeDomainNodeKey(d.Name, w.domainPrefix)
- 		_, err := w.client.Create(fmt.Sprintf("%s/type", d.NodeKey), d.Typ, 0)
+		_, err := w.kapi.Create(context.Background(), fmt.Sprintf("%s/type", d.NodeKey), d.Typ)
 		if err == nil {
-			_, err = w.client.Create(fmt.Sprintf("%s/value", d.NodeKey), d.Value, 0)
+			_, err = w.kapi.Create(context.Background(), fmt.Sprintf("%s/value", d.NodeKey), d.Value)
 		}
 
 		if err != nil {
 			//Rollback creation
-			w.client.Delete(d.NodeKey, true)
+			w.kapi.Delete(context.Background(), d.NodeKey, &etcd.DeleteOptions{Recursive: true})
 			return nil, err
 		}
 
@@ -580,7 +563,7 @@ func (w *Watcher) PersistDomain(d *Domain) (*Domain, error) {
 
 }
 func (w *Watcher) DestroyDomain(d *Domain) error {
-	_, err := w.client.Delete(d.NodeKey, true)
+	_, err := w.kapi.Delete(context.Background(), d.NodeKey, &etcd.DeleteOptions{Recursive: true})
 	return err
 
 }
