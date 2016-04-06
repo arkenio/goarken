@@ -15,7 +15,7 @@ func NewModelEvent(eventType string, model interface{}) *ModelEvent {
 	return &ModelEvent{eventType, model}
 }
 
-func FromInterfaceChannel(fromChannel chan interface{}) chan *ModelEvent{
+func FromInterfaceChannel(fromChannel chan interface{}) chan *ModelEvent {
 	result := make(chan *ModelEvent)
 	go func() {
 		for {

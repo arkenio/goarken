@@ -33,6 +33,7 @@ type Watcher struct {
 	broadcaster   *Broadcaster
 	servicePrefix string
 	domainPrefix  string
+	stop          *Broadcaster
 }
 
 func NewWatcher(client etcd.KeysAPI, servicePrefix string, domainPrefix string) *Watcher {
@@ -42,6 +43,7 @@ func NewWatcher(client etcd.KeysAPI, servicePrefix string, domainPrefix string) 
 		broadcaster:   NewBroadcaster(),
 		servicePrefix: servicePrefix,
 		domainPrefix:  domainPrefix,
+		stop:          NewBroadcaster(),
 	}
 
 	watcher.Init()
@@ -87,8 +89,6 @@ func (w *Watcher) Listen() chan *model.ModelEvent {
 func (w *Watcher) doWatch(etcdDir string, registerFunc func(*etcd.Node, string)) {
 
 	for {
-		log.Infof("Start watching %s", etcdDir)
-
 		watcher := w.kapi.Watcher(etcdDir, &etcd.WatcherOptions{Recursive: true})
 
 		for {
@@ -96,7 +96,6 @@ func (w *Watcher) doWatch(etcdDir string, registerFunc func(*etcd.Node, string))
 			if err == nil {
 				registerFunc(resp.Node, resp.Action)
 			} else {
-				log.Warningf("Error when watching %s : %v", etcdDir, err)
 				break
 			}
 		}
@@ -170,20 +169,12 @@ func (w *Watcher) registerDomain(node *etcd.Node, action string) {
 	}
 
 	domainKey := w.domainPrefix + "/" + domainName
-	response, err := w.kapi.Get(context.Background(), domainKey, &etcd.GetOptions{Recursive: false})
+	response, err := w.kapi.Get(context.Background(), domainKey, &etcd.GetOptions{Recursive: true})
 
 	if err == nil {
 		domain, _ := NewDomain(response.Node)
-
-		//actualDomain := w.model.Domains[domainName]
-
 		if domain.Typ != "" && domain.Value != "" { // && !domain.Equals(actualDomain) {
-			//w.model.Domains[domainName] = domain
-			log.Infof("Registered domain %s with (%s) %s", domainName, domain.Typ, domain.Value)
-
-			//Broadcast the updated domain
 			w.broadcaster.Write(model.NewModelEvent("update", domain))
-
 		}
 
 	}
@@ -216,7 +207,7 @@ func NewDomain(domainNode *etcd.Node) (*Domain, error) {
 func (w *Watcher) registerService(node *etcd.Node, action string) {
 
 	serviceName, err := getEnvForNode(node)
-	if err != nil {
+	if err != nil || serviceName == "" {
 		return
 	}
 
@@ -229,33 +220,10 @@ func (w *Watcher) registerService(node *etcd.Node, action string) {
 	response, err := w.kapi.Get(context.Background(), w.servicePrefix+"/"+serviceName, &etcd.GetOptions{Recursive: true, Sort: true})
 
 	if err == nil {
-
 		sc := getServiceClusterFromNode(response.Node)
-
 		w.broadcaster.Write(model.NewModelEvent("update", sc))
-
-		/*if w.model.Services[sc.Name] == nil {
-			w.model.Services[sc.Name] = sc
-			w.broadcaster.Write(w.model.Services[serviceName])
-
-		} else {
-			for _, service := range sc.GetInstances() {
-				actualEnv := w.model.Services[serviceName].Get(service.Index)
-				if !actualEnv.Equals(service) {
-					w.model.Services[serviceName].Add(service)
-					if service.Location.Host != "" && service.Location.Port != 0 {
-						log.Infof("Registering service %s with location : http://%s:%d/", serviceName, service.Location.Host, service.Location.Port)
-					} else {
-						log.Infof("Registering service %s without location", serviceName)
-					}
-					//Broadcast the updated object
-				w.broadcaster.Write(w.model.Services[serviceName])
-				}
-			}
-		}*/
-
 	} else {
-		log.Errorf("Unable to get information for service %s from etcd", serviceName)
+		log.Errorf("Unable to get information for service %s from etcd (%v) update on %s", serviceName, err, node.Key)
 	}
 }
 
@@ -390,6 +358,7 @@ func (w *Watcher) PersistService(s *Service) (*Service, error) {
 
 		if err != nil {
 			//Rollback creation
+			log.Warnf("Rollback creation of service %s", s.Name)
 			w.kapi.Delete(context.Background(), s.NodeKey, &etcd.DeleteOptions{Recursive: true})
 			return nil, err
 		}
@@ -502,7 +471,7 @@ func (w *Watcher) LoadAllDomains() (map[string]*Domain, error) {
 
 	result := make(map[string]*Domain)
 
-	response, err := w.kapi.Get(context.Background(), w.domainPrefix, &etcd.GetOptions{Recursive:true, Sort: true})
+	response, err := w.kapi.Get(context.Background(), w.domainPrefix, &etcd.GetOptions{Recursive: true, Sort: true})
 	if err == nil {
 		for _, domainNode := range response.Node.Nodes {
 			domain, err := NewDomain(domainNode)
@@ -516,7 +485,7 @@ func (w *Watcher) LoadAllDomains() (map[string]*Domain, error) {
 	return result, nil
 }
 func (w *Watcher) LoadDomain(domainName string) (*Domain, error) {
-	response, err := w.kapi.Get(context.Background(), computeDomainNodeKey(domainName, w.domainPrefix), &etcd.GetOptions{Recursive:true, Sort: true})
+	response, err := w.kapi.Get(context.Background(), computeDomainNodeKey(domainName, w.domainPrefix), &etcd.GetOptions{Recursive: true, Sort: true})
 	if err != nil {
 		return nil, err
 	} else {
@@ -529,7 +498,7 @@ func (w *Watcher) LoadDomain(domainName string) (*Domain, error) {
 func (w *Watcher) PersistDomain(d *Domain) (*Domain, error) {
 
 	if d.NodeKey != "" {
-		resp, err := w.kapi.Get(context.Background(), d.NodeKey, &etcd.GetOptions{Recursive:true, Sort: false})
+		resp, err := w.kapi.Get(context.Background(), d.NodeKey, &etcd.GetOptions{Recursive: true, Sort: false})
 
 		oldDomain, _ := NewDomain(resp.Node)
 		if err != nil {
@@ -545,7 +514,6 @@ func (w *Watcher) PersistDomain(d *Domain) (*Domain, error) {
 		}
 
 	} else {
-
 		d.NodeKey = computeDomainNodeKey(d.Name, w.domainPrefix)
 		_, err := w.kapi.Create(context.Background(), fmt.Sprintf("%s/type", d.NodeKey), d.Typ)
 		if err == nil {
@@ -554,6 +522,7 @@ func (w *Watcher) PersistDomain(d *Domain) (*Domain, error) {
 
 		if err != nil {
 			//Rollback creation
+			log.Warnf("Rollback creation of domain %s", d.Name)
 			w.kapi.Delete(context.Background(), d.NodeKey, &etcd.DeleteOptions{Recursive: true})
 			return nil, err
 		}

@@ -5,25 +5,25 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Sirupsen/logrus"
 	. "github.com/arkenio/goarken/model"
+	catalogclient "github.com/dmetzler/go-ranchercatalog/client"
 	"github.com/gorilla/websocket"
 	"github.com/mitchellh/mapstructure"
 	"github.com/rancher/go-rancher/client"
-	catalogclient "github.com/dmetzler/go-ranchercatalog/client"
 	"net/http"
 	"net/url"
 	"regexp"
-	"github.com/Sirupsen/logrus"
 )
 
 var (
 	rancherHostRegexp = regexp.MustCompile("http.*/projects/(.*)")
-	log = logrus.New()
+	log               = logrus.New()
 )
 
 type RancherServiceDriver struct {
-	rancherClient *client.RancherClient
-	broadcaster   *Broadcaster
+	rancherClient    *client.RancherClient
+	broadcaster      *Broadcaster
 	rancherCatClient *catalogclient.RancherCatalogClient
 }
 
@@ -35,16 +35,14 @@ func NewRancherServiceDriver(rancherHost string, rancherAccessKey string, ranche
 		SecretKey: rancherSecretKey,
 	}
 
-	catalaogClientOpts := & catalogclient.ClientOpts{
-		Url: clientOpts.Url,
+	catalaogClientOpts := &catalogclient.ClientOpts{
+		Url:       clientOpts.Url,
 		AccessKey: clientOpts.AccessKey,
 		SecretKey: clientOpts.SecretKey,
 	}
 
 	rancherClient, err := client.NewRancherClient(clientOpts)
 	rancherCatClient, err := catalogclient.NewRancherCatalogClient(catalaogClientOpts)
-
-
 
 	if err != nil {
 		return nil, err
@@ -56,7 +54,6 @@ func NewRancherServiceDriver(rancherHost string, rancherAccessKey string, ranche
 		rancherCatClient,
 	}
 
-
 	c, _, err := getRancherSocket(rancherClient)
 	if err != nil {
 		return nil, err
@@ -66,8 +63,6 @@ func NewRancherServiceDriver(rancherHost string, rancherAccessKey string, ranche
 	return sd, nil
 
 }
-
-
 
 func getProjectIdFromRancherHost(host string) string {
 	matches := rancherHostRegexp.FindStringSubmatch(host)
@@ -157,7 +152,7 @@ func (r *RancherServiceDriver) Create(s *Service, startOnCreate bool) (interface
 		return nil, errors.New("Rancher template has to be specified !")
 	}
 	log.Infof("Looking for template %s", info.TemplateId)
-	template,err := r.rancherCatClient.Template.ById(info.TemplateId)
+	template, err := r.rancherCatClient.Template.ById(info.TemplateId)
 	if err != nil {
 		log.Error("Rancher template not found : " + err.Error())
 		return nil, errors.New("Rancher template not found : " + err.Error())
@@ -168,8 +163,8 @@ func (r *RancherServiceDriver) Create(s *Service, startOnCreate bool) (interface
 	env.StartOnCreate = startOnCreate
 	env.Name = s.Name
 	env.Environment = s.Config.Environment
-	env.DockerCompose = extractFileContent(template,"docker-compose.yml")
-	env.RancherCompose = extractFileContent(template,"rancher-compose.yml")
+	env.DockerCompose = extractFileContent(template, "docker-compose.yml")
+	env.RancherCompose = extractFileContent(template, "rancher-compose.yml")
 
 	log.Infof("Creating stack %s on rancher", s.Name)
 	env, err = r.rancherClient.Environment.Create(env)
@@ -179,18 +174,16 @@ func (r *RancherServiceDriver) Create(s *Service, startOnCreate bool) (interface
 		return nil, errors.New("Error when creating service on Rancher side: " + err.Error())
 	}
 
-
 	return &RancherInfoType{EnvironmentId: env.Id}, nil
 
 }
 
 func extractFileContent(template *catalogclient.Template, filename string) string {
-	if content,ok := template.Files[filename].(string); ok {
+	if content, ok := template.Files[filename].(string); ok {
 		return content
 	}
 	return ""
 }
-
 
 func (r *RancherServiceDriver) Start(s *Service) (interface{}, error) {
 	rancherId := s.Config.RancherInfo.EnvironmentId
@@ -220,7 +213,6 @@ func (r *RancherServiceDriver) Destroy(s *Service) error {
 	}
 	return r.rancherClient.Environment.Delete(env)
 }
-
 
 func (r *RancherServiceDriver) Listen() chan *ModelEvent {
 	return FromInterfaceChannel(r.broadcaster.Listen())

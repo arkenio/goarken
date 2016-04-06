@@ -3,11 +3,10 @@ package main
 import (
 	. "github.com/arkenio/goarken/model"
 	"github.com/arkenio/goarken/storage"
-	. "github.com/smartystreets/goconvey/convey"
 	"github.com/coreos/etcd/client"
 	"github.com/coreos/etcd/integration"
 	"github.com/coreos/etcd/pkg/testutil"
-	"golang.org/x/net/context"
+	. "github.com/smartystreets/goconvey/convey"
 	"testing"
 	"time"
 )
@@ -56,8 +55,9 @@ func (w *MockServiceDriver) StopDriver() {
 
 }
 
-
 func Test_EtcdWatcher(t *testing.T) {
+	//Wait for potential other etcd cluster to stop
+	time.Sleep(3 * time.Second)
 
 	defer testutil.AfterTest(t)
 	cl := integration.NewCluster(t, 1)
@@ -77,18 +77,21 @@ func Test_EtcdWatcher(t *testing.T) {
 		panic(err)
 	}
 
-
-
 	var model *Model
-
 
 	sd := NewMockServiceDriver()
 	Convey("Given a model", t, func() {
-		kapi.Delete(context.Background(),"/domains", &client.DeleteOptions{Recursive:true})
-		kapi.Delete(context.Background(),"/services", &client.DeleteOptions{Recursive:true})
 
 		pd := storage.NewWatcher(kapi, "/services", "/domains")
-		model,_ = NewArkenModel(sd, pd)
+		model, _ = NewArkenModel(sd, pd)
+
+		for _, s := range model.Services {
+			model.DestroyServiceCluster(s)
+		}
+
+		for _, d := range model.Domains {
+			model.DestroyDomain(d)
+		}
 
 		Convey("When i create a service", func() {
 			initialCreateCount := sd.calls["create"]
@@ -118,9 +121,10 @@ func Test_EtcdWatcher(t *testing.T) {
 			})
 
 			Convey("Then the service should be created in the backend", func() {
-
+				time.Sleep(time.Second)
 				So(sd.calls["create"], ShouldEqual, initialCreateCount+1)
 				instance := model.Services["testService"].GetInstances()[0]
+
 				So(instance.Config, ShouldNotBeNil)
 				So(instance.Config.RancherInfo, ShouldNotBeNil)
 				So(instance.Config.RancherInfo.EnvironmentId, ShouldEqual, "rancherId")
@@ -142,6 +146,8 @@ func Test_EtcdWatcher(t *testing.T) {
 
 			Convey("When I start the service and the service is started", func() {
 				model.StartService(service)
+
+				service := model.Services[service.Name].Instances[0]
 				service.Status.Current = STARTED_STATUS
 				service.Status.Alive = "1"
 
@@ -152,6 +158,22 @@ func Test_EtcdWatcher(t *testing.T) {
 
 			})
 
+		})
+
+		Convey("When I create a service with a domain", func() {
+			service := &Service{}
+			service.Init()
+
+			service.Name = "testService"
+			service.Domain = "test.domain.com"
+
+			model.CreateService(service, false)
+
+			Convey("Then a domain should be created", func() {
+				time.Sleep(2 * time.Second)
+				So(len(model.Domains), ShouldEqual, 1)
+				So(model.Domains["test.domain.com"], ShouldNotBeNil)
+			})
 		})
 
 	})

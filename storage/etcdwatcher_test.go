@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"github.com/arkenio/goarken/model"
 	. "github.com/arkenio/goarken/model"
-	. "github.com/smartystreets/goconvey/convey"
 	"github.com/coreos/etcd/client"
 	"github.com/coreos/etcd/integration"
 	"github.com/coreos/etcd/pkg/testutil"
+	. "github.com/smartystreets/goconvey/convey"
 	"golang.org/x/net/context"
 	"sync"
 	"testing"
@@ -21,6 +21,8 @@ func wait(listening chan *ModelEvent, wg *sync.WaitGroup) {
 }
 
 func Test_EtcdWatcher(t *testing.T) {
+	//Wait for potential other etcd cluster to stop
+	time.Sleep(3 * time.Second)
 
 	defer testutil.AfterTest(t)
 	cl := integration.NewCluster(t, 1)
@@ -47,11 +49,9 @@ func Test_EtcdWatcher(t *testing.T) {
 
 	notifCount := 0
 
-
-
 	Convey("Given a Model with one service", t, func() {
-		kapi.Delete(context.Background(), "/domains", &client.DeleteOptions{Recursive:true})
-		kapi.Delete(context.Background(),"/services", &client.DeleteOptions{Recursive:true})
+		kapi.Delete(context.Background(), "/domains", &client.DeleteOptions{Recursive: true})
+		kapi.Delete(context.Background(), "/services", &client.DeleteOptions{Recursive: true})
 
 		w = NewWatcher(kapi, "/services", "/domains")
 		updateChan = w.Listen()
@@ -71,7 +71,7 @@ func Test_EtcdWatcher(t *testing.T) {
 		w.PersistService(service)
 
 		Convey("When i get an etcd node from that service", func() {
-			resp, _ := kapi.Get(context.Background(), fmt.Sprintf("/services/%s/1/status/expected", testServiceName), &client.GetOptions{Recursive:true})
+			resp, _ := kapi.Get(context.Background(), fmt.Sprintf("/services/%s/1/status/expected", testServiceName), &client.GetOptions{Recursive: true})
 			Convey("Then it can get the env key from it", func() {
 				So(resp, ShouldNotBeNil)
 				name, error := getEnvForNode(resp.Node)
@@ -84,7 +84,7 @@ func Test_EtcdWatcher(t *testing.T) {
 		Convey("When I create a Service", func() {
 
 			Convey("Then the list of service contains 1 service", func() {
-				services,_ := w.LoadAllServices()
+				services, _ := w.LoadAllServices()
 				So(len(services), ShouldEqual, 1)
 			})
 
@@ -99,12 +99,12 @@ func Test_EtcdWatcher(t *testing.T) {
 			services, _ := w.LoadAllServices()
 			nbServices := len(services)
 
-			sc,_ := w.LoadService(testServiceName)
+			sc, _ := w.LoadService(testServiceName)
 
 			w.DestroyService(sc)
 
 			Convey("Then the service should be destroyed", func() {
-				sc,_ := w.LoadService("serviceToBeDestroyed")
+				sc, _ := w.LoadService("serviceToBeDestroyed")
 				So(sc, ShouldBeNil)
 			})
 
@@ -117,7 +117,7 @@ func Test_EtcdWatcher(t *testing.T) {
 		Convey("When i modify a service", func() {
 
 			initialNotifCount := notifCount
-			sc,_ := w.LoadService(testServiceName)
+			sc, _ := w.LoadService(testServiceName)
 
 			service = sc.Instances[0]
 
@@ -127,7 +127,7 @@ func Test_EtcdWatcher(t *testing.T) {
 			w.PersistService(service)
 
 			Convey("Then the service should be modified", func() {
-				sc,_ := w.LoadService(testServiceName)
+				sc, _ := w.LoadService(testServiceName)
 				service = sc.Instances[0]
 				So(service.Status.Expected, ShouldEqual, STARTED_STATUS)
 				So(service.Config.RancherInfo.EnvironmentId, ShouldEqual, "bla")
@@ -141,8 +141,8 @@ func Test_EtcdWatcher(t *testing.T) {
 	})
 
 	Convey("Given a Model with one domain", t, func() {
-		kapi.Delete(context.Background(),"/domains", &client.DeleteOptions{Recursive:true})
-		kapi.Delete(context.Background(),"/services", &client.DeleteOptions{Recursive:true})
+		kapi.Delete(context.Background(), "/domains", &client.DeleteOptions{Recursive: true})
+		kapi.Delete(context.Background(), "/services", &client.DeleteOptions{Recursive: true})
 
 		w = NewWatcher(kapi, "/services", "/domains")
 		updateChan = w.Listen()
@@ -168,7 +168,7 @@ func Test_EtcdWatcher(t *testing.T) {
 		})
 
 		Convey("When i get an etcd node from that domain", func() {
-			resp, _ := kapi.Get(context.Background(),fmt.Sprintf("/domains/%s/type", domain.Name), &client.GetOptions{Recursive:true})
+			resp, _ := kapi.Get(context.Background(), fmt.Sprintf("/domains/%s/type", domain.Name), &client.GetOptions{Recursive: true})
 			So(resp, ShouldNotBeNil)
 			Convey("Then it can get the env key from it", func() {
 				name, _ := getDomainForNode(resp.Node)
@@ -178,7 +178,7 @@ func Test_EtcdWatcher(t *testing.T) {
 		})
 
 		Convey("When it load all domains", func() {
-			domains,_ := w.LoadAllDomains()
+			domains, _ := w.LoadAllDomains()
 			Convey("Then there should be one domain", func() {
 				So(len(domains), ShouldEqual, 1)
 			})
@@ -186,7 +186,7 @@ func Test_EtcdWatcher(t *testing.T) {
 		})
 
 		Convey("When it load one domain", func() {
-			domain,_ = w.LoadDomain(domain.Name)
+			domain, _ = w.LoadDomain(domain.Name)
 			Convey("Then it should be equals to created domain", func() {
 				So(domain, ShouldNotBeNil)
 				So(domain.Name, ShouldEqual, "test.domain.com")
@@ -197,21 +197,21 @@ func Test_EtcdWatcher(t *testing.T) {
 
 		Convey("When it destroy a domain", func() {
 			w.DestroyDomain(domain)
-			domains,_ := w.LoadAllDomains()
+			domains, _ := w.LoadAllDomains()
 			So(len(domains), ShouldEqual, 0)
 		})
 
 		Convey("When i modify a domain", func() {
 
 			initialNotifCount := notifCount
-			domain,_ := w.LoadDomain("test.domain.com")
+			domain, _ := w.LoadDomain("test.domain.com")
 
 			domain.Value = "testService2"
 
 			w.PersistDomain(domain)
 
 			Convey("Then the domain should be modified", func() {
-				domain,_ := w.LoadDomain("test.domain.com")
+				domain, _ := w.LoadDomain("test.domain.com")
 				So(domain, ShouldNotBeNil)
 				So(domain.Value, ShouldEqual, "testService2")
 			})
@@ -223,7 +223,7 @@ func Test_EtcdWatcher(t *testing.T) {
 		})
 
 		Convey("When two objet listens for event", func() {
-			domain,_ := w.LoadDomain("test.domain.com")
+			domain, _ := w.LoadDomain("test.domain.com")
 			domain.Value = "testService2"
 
 			var wg sync.WaitGroup

@@ -28,7 +28,6 @@ func Test_status(t *testing.T) {
 
 		})
 
-
 		Convey("When no status is expected and current is started", func() {
 			status.Expected = ""
 			status.Current = "started"
@@ -101,7 +100,6 @@ func Test_status(t *testing.T) {
 			})
 
 		})
-
 
 		Convey("When status is nil", func() {
 			var status *Status

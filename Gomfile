@@ -6,7 +6,7 @@ gom 'github.com/dmetzler/go-ranchercatalog/client', :branch => 'master'
 gom 'github.com/gorilla/websocket', :branch => 'master'
 gom 'github.com/mitchellh/mapstructure', :branch => 'master'
 gom 'github.com/rancher/go-rancher/client', :branch => 'master'
-
+gom 'github.com/Sirupsen/logrus', :branch => 'master'
 gom 'github.com/boltdb/bolt', :branch => 'master'
 gom 'github.com/coreos/go-semver/semver', :branch => 'master'
 gom 'github.com/coreos/pkg/capnslog', :branch => 'master'

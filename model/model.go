@@ -1,10 +1,10 @@
 package model
+
 import (
-	"github.com/Sirupsen/logrus"
 	"errors"
 	"fmt"
+	"github.com/Sirupsen/logrus"
 )
-
 
 var log = logrus.New()
 
@@ -16,7 +16,7 @@ type Model struct {
 	Services map[string]*ServiceCluster
 }
 
-func NewArkenModel(sDriver ServiceDriver, pDriver PersistenceDriver) (*Model,error) {
+func NewArkenModel(sDriver ServiceDriver, pDriver PersistenceDriver) (*Model, error) {
 	if pDriver == nil {
 		return nil, errors.New("Can't use a nil persistence Driver for Arken model")
 	}
@@ -31,21 +31,20 @@ func NewArkenModel(sDriver ServiceDriver, pDriver PersistenceDriver) (*Model,err
 	err := model.Init()
 
 	if err == nil {
-		return model,nil
+		return model, nil
 	} else {
 		return nil, err
 	}
 }
 
-func (m *Model) Init() error{
+func (m *Model) Init() error {
 
 	//Load initial data
-	domains , err := m.persistenceDriver.LoadAllDomains()
+	domains, err := m.persistenceDriver.LoadAllDomains()
 	if err != nil {
 		return err
 	}
 	m.Domains = domains
-
 
 	services, err := m.persistenceDriver.LoadAllServices()
 	if err != nil {
@@ -69,20 +68,39 @@ func (m *Model) CreateService(service *Service, startOnCreate bool) (*Service, e
 
 	s, err := m.persistenceDriver.PersistService(service)
 	if err != nil {
-		return nil,errors.New(fmt.Sprintf("Unable to persist service %s in etcd : %s",service.Name, err.Error()))
+		return nil, errors.New(fmt.Sprintf("Unable to persist service %s in etcd : %s", service.Name, err.Error()))
 	}
 
 	if m.serviceDriver != nil {
 		info, err := m.serviceDriver.Create(s, startOnCreate)
 		if err != nil {
-			return nil,errors.New(fmt.Sprintf("Unable to create service in backend : %s",s.Name, err.Error()))
+			return nil, errors.New(fmt.Sprintf("Unable to create service in backend : %s", s.Name, err.Error()))
 		}
 
 		m.updateInfoFromDriver(s, info)
 	}
 
-	return m.saveService(s)
+	s, err = m.saveService(s)
+	if err != nil {
+		return nil, err
+	}
 
+	if s.Domain != "" {
+		_, err := m.CreateDomain(&Domain{Name: s.Domain, Typ: "service", Value: s.Name})
+		if err != nil {
+			log.Errorf("Unable to create domain %s for service %s", s.Domain, s.Name)
+		}
+	}
+	return s, nil
+
+}
+
+func (m *Model) CreateDomain(domain *Domain) (*Domain, error) {
+	return m.persistenceDriver.PersistDomain(domain)
+}
+
+func (m *Model) DestroyDomain(domain *Domain) error {
+	return m.persistenceDriver.DestroyDomain(domain)
 }
 
 func (m *Model) StartService(service *Service) (*Service, error) {
@@ -135,20 +153,11 @@ func (m *Model) DestroyServiceCluster(sc *ServiceCluster) error {
 		}
 	}
 
-
 	return m.persistenceDriver.DestroyService(sc)
 }
 
-
-
 func (m *Model) saveService(service *Service) (*Service, error) {
-	service, err := m.persistenceDriver.PersistService(service)
-	if err == nil {
-		m.Services[service.Name].Add(service)
-		return service, nil
-	} else {
-		return nil, err
-	}
+	return m.persistenceDriver.PersistService(service)
 }
 
 func (m *Model) updateInfoFromDriver(service *Service, info interface{}) {
@@ -193,10 +202,10 @@ func (m *Model) handlePersistenceModelEventOn(eventStream chan *ModelEvent) {
 func (m *Model) onRancherInfo(info *RancherInfoType) {
 	sc := m.Services[info.EnvironmentName]
 	if sc != nil {
-		for _,service := range sc.GetInstances() {
+		for _, service := range sc.GetInstances() {
 			service.Config.RancherInfo = info
 
-			if(!service.Location.Equals(info.Location)) {
+			if !service.Location.Equals(info.Location) {
 				log.Infof("Service %s changed location from %s to %s", service.Name, service.Location, info.Location)
 				service.Location = info.Location
 
@@ -204,19 +213,19 @@ func (m *Model) onRancherInfo(info *RancherInfoType) {
 
 			computedSatus := service.Status.Compute()
 			service.Status.Current = info.CurrentStatus
-			if(service.Status.Current == STARTED_STATUS) {
+			if service.Status.Current == STARTED_STATUS {
 				service.Status.Alive = "1"
 			} else {
 				service.Status.Alive = ""
 			}
-			if(computedSatus != service.Status.Compute()) {
+			if computedSatus != service.Status.Compute() {
 				log.Infof("Service %s changed its status to : %s", service.Name, service.Status.Compute())
 			}
 
 			_, err := m.persistenceDriver.PersistService(service)
-			if(err!= nil) {
+			if err != nil {
 				log.Errorf("Error when persisting rancher update : %s", err.Error())
-				log.Errorf("Rancher update was : %s" , info)
+				log.Errorf("Rancher update was : %s", info)
 			}
 		}
 	}

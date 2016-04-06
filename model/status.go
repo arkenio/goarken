@@ -1,6 +1,5 @@
 package model
 
-
 const (
 	STARTING_STATUS   = "starting"
 	STARTED_STATUS    = "started"
@@ -13,18 +12,17 @@ const (
 )
 
 type Status struct {
-	Alive    string `json:"alive"`
-	Current  string `json:"current"`
-	Expected string `json:"expected"`
+	Alive    string   `json:"alive"`
+	Current  string   `json:"current"`
+	Expected string   `json:"expected"`
 	Service  *Service `json:"-"`
 }
 
-
 func NewInitialStatus(initialStatus string, service *Service) *Status {
 	return &Status{
-		Current: initialStatus,
+		Current:  initialStatus,
 		Expected: initialStatus,
-		Service: service,
+		Service:  service,
 	}
 }
 
