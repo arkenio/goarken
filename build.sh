@@ -4,8 +4,7 @@ mkdir -p gopath
 mkdir -p _vendor/src/github.com/arkenio/
 ln -sf `pwd` _vendor/src/github.com/arkenio/goarken
 
-export GOPATH=`pwd`/gopath
-
 go get github.com/mattn/gom
+eval $(gom env | grep GOPATH)
 gom install
 gom build
