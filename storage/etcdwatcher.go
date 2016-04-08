@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/arkenio/goarken/model"
 	. "github.com/arkenio/goarken/model"
 	etcd "github.com/coreos/etcd/client"
 	"regexp"
@@ -78,7 +77,7 @@ func createDirIfNotExist(dir string, kapi etcd.KeysAPI) {
 	}
 }
 
-func (w *Watcher) Listen() chan *model.ModelEvent {
+func (w *Watcher) Listen() chan *ModelEvent {
 
 	return FromInterfaceChannel(w.broadcaster.Listen())
 
@@ -174,7 +173,7 @@ func (w *Watcher) registerDomain(node *etcd.Node, action string) {
 	if err == nil {
 		domain, _ := NewDomain(response.Node)
 		if domain.Typ != "" && domain.Value != "" { // && !domain.Equals(actualDomain) {
-			w.broadcaster.Write(model.NewModelEvent("update", domain))
+			w.broadcaster.Write(NewModelEvent("update", domain))
 		}
 
 	}
@@ -221,7 +220,7 @@ func (w *Watcher) registerService(node *etcd.Node, action string) {
 
 	if err == nil {
 		sc := getServiceClusterFromNode(response.Node)
-		w.broadcaster.Write(model.NewModelEvent("update", sc))
+		w.broadcaster.Write(NewModelEvent("update", sc))
 	} else {
 		log.Errorf("Unable to get information for service %s from etcd (%v) update on %s", serviceName, err, node.Key)
 	}

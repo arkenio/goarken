@@ -18,6 +18,7 @@ _cgo_defun.c
 _cgo_gotypes.go
 _cgo_export.*
 gogeta
+gopath
 tmp
 _testmain.go
 goarken
