@@ -2,6 +2,9 @@
 	"ImportPath": "github.com/arkenio/goarken",
 	"GoVersion": "go1.5",
 	"GodepVersion": "v62",
+	"Packages": [
+		"./..."
+	],
 	"Deps": [
 		{
 			"ImportPath": "github.com/Sirupsen/logrus",
@@ -295,6 +298,10 @@
 			"Rev": "1914e367e85eaf0c25d495b48e060dfe6190f8d0"
 		},
 		{
+			"ImportPath": "github.com/dmetzler/go-ranchercatalog/client",
+			"Rev": "1775abfe9deb21bd2553a06920a3b6059fb41640"
+		},
+		{
 			"ImportPath": "github.com/ghodss/yaml",
 			"Rev": "1a6f069841556a7bcaff4a397ca6e8328d266c2f"
 		},
@@ -317,6 +324,10 @@
 			"Rev": "f10744b1512e8cf31ec55b49ddeb1c93ed2de46e"
 		},
 		{
+			"ImportPath": "github.com/gorilla/websocket",
+			"Rev": "e2e3d8414d0fbae04004f151979f4e27c6747fe7"
+		},
+		{
 			"ImportPath": "github.com/jonboulle/clockwork",
 			"Rev": "ed104f61ea4877bea08af6f759805674861e968d"
 		},
@@ -328,6 +339,10 @@
 		{
 			"ImportPath": "github.com/matttproud/golang_protobuf_extensions/pbutil",
 			"Rev": "d0c3fe89de86839aecf2e0579c40ba3bb336a453"
+		},
+		{
+			"ImportPath": "github.com/mitchellh/mapstructure",
+			"Rev": "d2dd0262208475919e1a362f675cfc0e7c10e905"
 		},
 		{
 			"ImportPath": "github.com/prometheus/client_golang/prometheus",
@@ -354,6 +369,11 @@
 		{
 			"ImportPath": "github.com/prometheus/procfs",
 			"Rev": "406e5b7bfd8201a36e2bb5f7bdae0b03380c2ce8"
+		},
+		{
+			"ImportPath": "github.com/rancher/go-rancher/client",
+			"Comment": "v0.1.0-151-gc21ad77",
+			"Rev": "c21ad7797bc727e5fe65ae85d1be714845ce415c"
 		},
 		{
 			"ImportPath": "github.com/smartystreets/assertions",
