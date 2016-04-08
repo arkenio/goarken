@@ -1,8 +1,8 @@
 #!/bin/bash
-
+set -x
 mkdir -p gopath
 mkdir -p _vendor/src/github.com/arkenio/
-ln -s `pwd` _vendor/src/github.com/arkenio/goarken
+ln -sf `pwd` _vendor/src/github.com/arkenio/goarken
 
 export GOPATH=`pwd`/gopath
 
