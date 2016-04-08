@@ -2,7 +2,12 @@ language: go
 go:
 - tip
 before_install:
-- go get github.com/mattn/gom
+- go get github.com/tools/godep
 script:
-- ./build.sh
-- ./test.sh
+- godep restore
+- godep go build ./...
+- godep go test 
+- godep go test ./storage
+- godep go test ./drivers
+- godep go test ./model
+
