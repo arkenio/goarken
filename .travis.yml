@@ -4,11 +4,5 @@ go:
 before_install:
 - go get github.com/mattn/gom
 script:
-- $HOME/gopath/bin/gom install
-- $HOME/gopath/bin/gom build ./...
-- $HOME/gopath/bin/gom test
-- $HOME/gopath/bin/gom test ./storage
-- $HOME/gopath/bin/gom test ./model
-- $HOME/gopath/bin/gom test ./drivers
-
-
+- ./build.sh
+- ./test.sh
