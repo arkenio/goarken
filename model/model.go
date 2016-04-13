@@ -136,12 +136,12 @@ func (m *Model) DestroyDomain(domain *Domain) error {
 }
 
 func (m *Model) UpdateDomain(domain *Domain) (*Domain, error) {
-	domain, err := m.persistenceDriver.PersistDomain(*Domain)
+	domain, err := m.persistenceDriver.PersistDomain(domain)
 	if err != nil {
 		return nil, err
 	} else {
 		m.eventBroadcast.Write(NewModelEvent("update", domain))
-		return nil, domain
+		return domain, nil
 	}
 
 }
