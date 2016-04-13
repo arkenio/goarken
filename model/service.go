@@ -34,21 +34,19 @@ func (s Location) String() string {
 }
 
 type ServiceConfig struct {
-	Robots      string `json:"robots"`
-	Environment map[string]interface{}
-	RancherInfo *RancherInfoType `json:"rancherInfo,omitempty"`
-	FleetInfo   *FleetInfoType   `json:"fleetInfo,omitempty"`
+	Robots      string                 `json:"robots"`
+	Environment map[string]interface{} `json:"environment,omitempty"`
+	RancherInfo *RancherInfoType       `json:"rancherInfo,omitempty"`
+	FleetInfo   *FleetInfoType         `json:"fleetInfo,omitempty"`
 }
 
 type RancherInfoType struct {
-	EnvironmentId   string
-	EnvironmentName string
-	Location        *Location
-	HealthState     string
-	CurrentStatus   string
-	CatalogId       string
-	TemplateId      string
-	VersionId       string
+	EnvironmentId   string    `json:"environmentId,omitempty"`
+	EnvironmentName string    `json:"environmentName,omitempty"`
+	Location        *Location `json:"location,omitempty"`
+	HealthState     string    `json:"healthState,omitempty"`
+	CurrentStatus   string    `json:"currentStatus,omitempty"`
+	TemplateId      string    `json:"templateId,omitempty"`
 }
 
 func (r RancherInfoType) String() string {

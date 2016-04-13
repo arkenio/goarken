@@ -12,8 +12,9 @@ type Model struct {
 	serviceDriver     ServiceDriver
 	persistenceDriver PersistenceDriver
 
-	Domains  map[string]*Domain
-	Services map[string]*ServiceCluster
+	Domains        map[string]*Domain
+	Services       map[string]*ServiceCluster
+	eventBroadcast *Broadcaster
 }
 
 func NewArkenModel(sDriver ServiceDriver, pDriver PersistenceDriver) (*Model, error) {
@@ -26,6 +27,7 @@ func NewArkenModel(sDriver ServiceDriver, pDriver PersistenceDriver) (*Model, er
 		Services:          make(map[string]*ServiceCluster),
 		serviceDriver:     sDriver,
 		persistenceDriver: pDriver,
+		eventBroadcast:    NewBroadcaster(),
 	}
 
 	err := model.Init()
@@ -35,6 +37,10 @@ func NewArkenModel(sDriver ServiceDriver, pDriver PersistenceDriver) (*Model, er
 	} else {
 		return nil, err
 	}
+}
+
+func (m *Model) Listen() chan *ModelEvent {
+	return FromInterfaceChannel(m.eventBroadcast.Listen())
 }
 
 func (m *Model) Init() error {
@@ -86,21 +92,58 @@ func (m *Model) CreateService(service *Service, startOnCreate bool) (*Service, e
 	}
 
 	if s.Domain != "" {
-		_, err := m.CreateDomain(&Domain{Name: s.Domain, Typ: "service", Value: s.Name})
-		if err != nil {
-			log.Errorf("Unable to create domain %s for service %s", s.Domain, s.Name)
+
+		if domain, ok  := m.Domains[s.Domain]; ok {
+			domain.Typ = "service"
+			domain.Value = s.Name
+			_,err = m.UpdateDomain(domain)
+			if err != nil {
+				log.Errorf("Unable to update domain %s for service %s : %v", s.Domain, s.Name, err)
+			}
+		} else {
+			_, err := m.CreateDomain(&Domain{Name: s.Domain, Typ: "service", Value: s.Name})
+			if err != nil {
+				log.Errorf("Unable to create domain %s for service %s : %v", s.Domain, s.Name, err)
+			}
 		}
 	}
+
+	m.eventBroadcast.Write(NewModelEvent("create", s))
+
 	return s, nil
 
 }
 
 func (m *Model) CreateDomain(domain *Domain) (*Domain, error) {
-	return m.persistenceDriver.PersistDomain(domain)
+	domain, err := m.persistenceDriver.PersistDomain(domain)
+	if err != nil {
+		return nil, err
+	} else {
+		m.eventBroadcast.Write(NewModelEvent("create", domain))
+		return domain, nil
+	}
 }
 
 func (m *Model) DestroyDomain(domain *Domain) error {
-	return m.persistenceDriver.DestroyDomain(domain)
+
+	err := m.persistenceDriver.DestroyDomain(domain)
+	if err != nil {
+		return err
+	} else {
+		m.eventBroadcast.Write(NewModelEvent("destroy", domain))
+		return nil
+	}
+}
+
+func (m *Model) UpdateDomain(domain *Domain) (*Domain, error) {
+	domain, err := m.persistenceDriver.PersistDomain(*Domain)
+	if err != nil {
+		return nil, err
+	} else {
+		m.eventBroadcast.Write(NewModelEvent("update", domain))
+		return nil, domain
+	}
+
 }
 
 func (m *Model) StartService(service *Service) (*Service, error) {
@@ -115,7 +158,14 @@ func (m *Model) StartService(service *Service) (*Service, error) {
 
 	service.Status.Expected = STARTED_STATUS
 	service.Status.Current = STARTING_STATUS
-	return m.saveService(service)
+	service, err := m.saveService(service)
+
+	if err != nil {
+		return nil, err
+	} else {
+		m.eventBroadcast.Write(NewModelEvent("update", service))
+		return service, nil
+	}
 
 }
 
@@ -129,7 +179,34 @@ func (m *Model) StopService(service *Service) (*Service, error) {
 		m.updateInfoFromDriver(service, info)
 	}
 
-	return m.saveService(service)
+	service, err := m.saveService(service)
+
+	if err != nil {
+		return nil, err
+	} else {
+		m.eventBroadcast.Write(NewModelEvent("update", service))
+		return service, nil
+	}
+}
+
+func (m *Model) PassivateService(service *Service) (*Service, error) {
+	service.Status.Expected = PASSIVATED_STATUS
+
+	info, err := m.serviceDriver.Stop(service)
+	if err != nil {
+		return nil, err
+	}
+
+	m.updateInfoFromDriver(service, info)
+
+	service, err = m.saveService(service)
+
+	if err != nil {
+		return nil, err
+	} else {
+		m.eventBroadcast.Write(NewModelEvent("update", service))
+		return service, nil
+	}
 }
 
 func (m *Model) DestroyService(service *Service) error {
@@ -157,6 +234,7 @@ func (m *Model) DestroyServiceCluster(sc *ServiceCluster) error {
 }
 
 func (m *Model) saveService(service *Service) (*Service, error) {
+
 	return m.persistenceDriver.PersistService(service)
 }
 
@@ -168,6 +246,8 @@ func (m *Model) updateInfoFromDriver(service *Service, info interface{}) {
 	if fleetInfo, ok := info.(*FleetInfoType); ok {
 		service.Config.FleetInfo = fleetInfo
 	}
+
+	m.eventBroadcast.Write(NewModelEvent("update", service))
 
 }
 
@@ -181,8 +261,10 @@ func (m *Model) handlePersistenceModelEventOn(eventStream chan *ModelEvent) {
 		case "update":
 			if sc, ok := event.model.(*ServiceCluster); ok {
 				m.Services[sc.Name] = sc
+				m.eventBroadcast.Write(NewModelEvent("update", sc))
 			} else if domain, ok := event.model.(*Domain); ok {
 				m.Domains[domain.Name] = domain
+				m.eventBroadcast.Write(NewModelEvent("update", domain))
 			} else if info, ok := event.model.(*RancherInfoType); ok {
 				m.onRancherInfo(info)
 			}
@@ -211,22 +293,36 @@ func (m *Model) onRancherInfo(info *RancherInfoType) {
 
 			}
 
+			// Save last status
 			computedSatus := service.Status.Compute()
+
 			service.Status.Current = info.CurrentStatus
+			//If service is stopped it may be passivated
+			if info.CurrentStatus == STOPPED_STATUS && service.Status.Expected == PASSIVATED_STATUS {
+				service.Status.Current = PASSIVATED_STATUS
+			}
+
 			if service.Status.Current == STARTED_STATUS {
 				service.Status.Alive = "1"
 			} else {
 				service.Status.Alive = ""
 			}
+
+			// Compare to initial status
 			if computedSatus != service.Status.Compute() {
 				log.Infof("Service %s changed its status to : %s", service.Name, service.Status.Compute())
 			}
 
-			_, err := m.persistenceDriver.PersistService(service)
+			s, err := m.persistenceDriver.PersistService(service)
+
+			m.eventBroadcast.Write(NewModelEvent("update", s))
+
 			if err != nil {
 				log.Errorf("Error when persisting rancher update : %s", err.Error())
 				log.Errorf("Rancher update was : %s", info)
 			}
+
+
 		}
 	}
 }
