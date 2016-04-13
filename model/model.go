@@ -256,23 +256,23 @@ func (m *Model) handlePersistenceModelEventOn(eventStream chan *ModelEvent) {
 	for {
 		event := <-eventStream
 
-		switch event.eventType {
+		switch event.EventType {
 		case "create":
 		case "update":
-			if sc, ok := event.model.(*ServiceCluster); ok {
+			if sc, ok := event.Model.(*ServiceCluster); ok {
 				m.Services[sc.Name] = sc
 				m.eventBroadcast.Write(NewModelEvent("update", sc))
-			} else if domain, ok := event.model.(*Domain); ok {
+			} else if domain, ok := event.Model.(*Domain); ok {
 				m.Domains[domain.Name] = domain
 				m.eventBroadcast.Write(NewModelEvent("update", domain))
-			} else if info, ok := event.model.(*RancherInfoType); ok {
+			} else if info, ok := event.Model.(*RancherInfoType); ok {
 				m.onRancherInfo(info)
 			}
 		case "delete":
-			if sc, ok := event.model.(*ServiceCluster); ok {
+			if sc, ok := event.Model.(*ServiceCluster); ok {
 				delete(m.Services, sc.Name)
 
-			} else if domain, ok := event.model.(*Domain); ok {
+			} else if domain, ok := event.Model.(*Domain); ok {
 				delete(m.Domains, domain.Name)
 			}
 		}

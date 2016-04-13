@@ -3,12 +3,12 @@ package model
 import "fmt"
 
 type ModelEvent struct {
-	eventType string
-	model     interface{}
+	EventType string
+	Model     interface{}
 }
 
 func (me *ModelEvent) String() string {
-	return fmt.Sprintf("%s on  %s", me.eventType, me.model)
+	return fmt.Sprintf("%s on  %s", me.EventType, me.Model)
 }
 
 func NewModelEvent(eventType string, model interface{}) *ModelEvent {
