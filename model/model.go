@@ -168,6 +168,7 @@ func (m *Model) StartService(service *Service) (*Service, error) {
 }
 
 func (m *Model) StopService(service *Service) (*Service, error) {
+	service.Status.Expected = STOPPED_STATUS
 	if m.serviceDriver != nil {
 		info, err := m.serviceDriver.Stop(service)
 		if err != nil {
