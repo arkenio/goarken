@@ -58,13 +58,11 @@ func (m *Model) Init() error {
 	}
 	m.Services = services
 
-	go func() {
-		m.handlePersistenceModelEventOn(m.persistenceDriver.Listen())
-	}()
+	go m.handlePersistenceModelEventOn(m.persistenceDriver.Listen())
 
-	go func() {
-		m.handlePersistenceModelEventOn(m.serviceDriver.Listen())
-	}()
+	if m.serviceDriver != nil {
+		go m.handlePersistenceModelEventOn(m.serviceDriver.Listen())
+	}
 
 	return nil
 
