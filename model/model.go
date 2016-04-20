@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/Sirupsen/logrus"
+	"sort"
+	"time"
 )
 
 var log = logrus.New()
@@ -15,6 +17,7 @@ type Model struct {
 	Domains        map[string]*Domain
 	Services       map[string]*ServiceCluster
 	eventBroadcast *Broadcaster
+	eventBuffer    *eventBuffer
 }
 
 func NewArkenModel(sDriver ServiceDriver, pDriver PersistenceDriver) (*Model, error) {
@@ -29,8 +32,10 @@ func NewArkenModel(sDriver ServiceDriver, pDriver PersistenceDriver) (*Model, er
 		persistenceDriver: pDriver,
 		eventBroadcast:    NewBroadcaster(),
 	}
-
+	model.eventBuffer = newEventBuffer(model.eventBroadcast)
 	err := model.Init()
+
+
 
 	if err == nil {
 		return model, nil
@@ -63,6 +68,7 @@ func (m *Model) Init() error {
 	if m.serviceDriver != nil {
 		go m.handlePersistenceModelEventOn(m.serviceDriver.Listen())
 	}
+	go m.eventBuffer.run()
 
 	return nil
 
@@ -78,7 +84,7 @@ func (m *Model) CreateService(service *Service, startOnCreate bool) (*Service, e
 	if m.serviceDriver != nil {
 		info, err := m.serviceDriver.Create(s, startOnCreate)
 		if err != nil {
-			return nil, errors.New(fmt.Sprintf("Unable to create service in backend : %s", s.Name, err.Error()))
+			return nil, errors.New(fmt.Sprintf("Unable to crea		te service in backend : %s", s.Name, err.Error()))
 		}
 
 		m.updateInfoFromDriver(s, info)
@@ -91,10 +97,10 @@ func (m *Model) CreateService(service *Service, startOnCreate bool) (*Service, e
 
 	if s.Domain != "" {
 
-		if domain, ok  := m.Domains[s.Domain]; ok {
+		if domain, ok := m.Domains[s.Domain]; ok {
 			domain.Typ = "service"
 			domain.Value = s.Name
-			_,err = m.UpdateDomain(domain)
+			_, err = m.UpdateDomain(domain)
 			if err != nil {
 				log.Errorf("Unable to update domain %s for service %s : %v", s.Domain, s.Name, err)
 			}
@@ -106,7 +112,7 @@ func (m *Model) CreateService(service *Service, startOnCreate bool) (*Service, e
 		}
 	}
 
-	m.eventBroadcast.Write(NewModelEvent("create", s))
+	m.eventBuffer.events <- NewModelEvent("create", s)
 
 	return s, nil
 
@@ -117,7 +123,7 @@ func (m *Model) CreateDomain(domain *Domain) (*Domain, error) {
 	if err != nil {
 		return nil, err
 	} else {
-		m.eventBroadcast.Write(NewModelEvent("create", domain))
+		m.eventBuffer.events <- NewModelEvent("create", domain)
 		return domain, nil
 	}
 }
@@ -128,9 +134,10 @@ func (m *Model) DestroyDomain(domain *Domain) error {
 	if err != nil {
 		return err
 	} else {
-		m.eventBroadcast.Write(NewModelEvent("destroy", domain))
+		m.eventBuffer.events <- NewModelEvent("delete", domain)
 		return nil
 	}
+
 }
 
 func (m *Model) UpdateDomain(domain *Domain) (*Domain, error) {
@@ -138,10 +145,9 @@ func (m *Model) UpdateDomain(domain *Domain) (*Domain, error) {
 	if err != nil {
 		return nil, err
 	} else {
-		m.eventBroadcast.Write(NewModelEvent("update", domain))
+		m.eventBuffer.events <- NewModelEvent("update", domain)
 		return domain, nil
 	}
-
 }
 
 func (m *Model) StartService(service *Service) (*Service, error) {
@@ -161,7 +167,7 @@ func (m *Model) StartService(service *Service) (*Service, error) {
 	if err != nil {
 		return nil, err
 	} else {
-		m.eventBroadcast.Write(NewModelEvent("update", service))
+		m.eventBuffer.events <- NewModelEvent("update", service)
 		return service, nil
 	}
 
@@ -183,7 +189,7 @@ func (m *Model) StopService(service *Service) (*Service, error) {
 	if err != nil {
 		return nil, err
 	} else {
-		m.eventBroadcast.Write(NewModelEvent("update", service))
+		m.eventBuffer.events <- NewModelEvent("update", service)
 		return service, nil
 	}
 }
@@ -203,7 +209,7 @@ func (m *Model) PassivateService(service *Service) (*Service, error) {
 	if err != nil {
 		return nil, err
 	} else {
-		m.eventBroadcast.Write(NewModelEvent("update", service))
+		m.eventBuffer.events <- NewModelEvent("update", service)
 		return service, nil
 	}
 }
@@ -216,7 +222,13 @@ func (m *Model) DestroyService(service *Service) error {
 		}
 	}
 
-	return m.persistenceDriver.DestroyService(m.Services[service.Name])
+	error := m.persistenceDriver.DestroyService(m.Services[service.Name])
+	if error != nil {
+		return error
+	} else {
+		m.eventBuffer.events <- NewModelEvent("delete", service)
+		return nil
+	}
 }
 
 func (m *Model) DestroyServiceCluster(sc *ServiceCluster) error {
@@ -225,6 +237,8 @@ func (m *Model) DestroyServiceCluster(sc *ServiceCluster) error {
 			err := m.serviceDriver.Destroy(service)
 			if err != nil {
 				return err
+			} else {
+				m.eventBuffer.events <- NewModelEvent("delete", service)
 			}
 		}
 	}
@@ -245,9 +259,58 @@ func (m *Model) updateInfoFromDriver(service *Service, info interface{}) {
 	if fleetInfo, ok := info.(*FleetInfoType); ok {
 		service.Config.FleetInfo = fleetInfo
 	}
+	m.eventBuffer.events <- NewModelEvent("update", service)
 
-	m.eventBroadcast.Write(NewModelEvent("update", service))
+}
 
+type eventBuffer struct {
+	eventsMap      map[string]*ModelEvent
+	events         chan *ModelEvent
+	eventBroadcast *Broadcaster
+}
+
+func newEventBuffer(b *Broadcaster) *eventBuffer {
+	return &eventBuffer{
+		eventsMap:      make(map[string]*ModelEvent),
+		events:         make(chan *ModelEvent),
+		eventBroadcast: b,
+	}
+}
+
+func (eb *eventBuffer) run() {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			events := make([]*ModelEvent,0, len(eb.eventsMap))
+			for _,v := range eb.eventsMap {
+				events = append(events, v)
+			}
+			sort.Sort(ModelByTime(events))
+
+			for _,event := range events {
+				eb.eventBroadcast.Write(event)
+				delete(eb.eventsMap, eb.keyFromModelEvent(event))
+			}
+			break
+		case event := <-eb.events:
+			eb.eventsMap[eb.keyFromModelEvent(event)] = event
+			break
+		}
+	}
+}
+
+func (eb *eventBuffer) keyFromModelEvent(event *ModelEvent) string {
+	if sc, ok := event.Model.(*ServiceCluster); ok {
+		return fmt.Sprintf("SC_%s_%s", event.EventType, sc.Name)
+	} else if domain, ok := event.Model.(*Domain); ok {
+		return fmt.Sprintf("D_%s_%s", event.EventType, domain.Name)
+	} else if service, ok := event.Model.(*Service); ok {
+		return fmt.Sprintf("S_%s_%s", event.EventType, service.Name)
+	}
+	return "unknown"
 }
 
 func (m *Model) handlePersistenceModelEventOn(eventStream chan *ModelEvent) {
@@ -260,21 +323,25 @@ func (m *Model) handlePersistenceModelEventOn(eventStream chan *ModelEvent) {
 		case "update":
 			if sc, ok := event.Model.(*ServiceCluster); ok {
 				m.Services[sc.Name] = sc
-				m.eventBroadcast.Write(NewModelEvent("update", sc))
+				m.eventBuffer.events <- event
 			} else if domain, ok := event.Model.(*Domain); ok {
 				m.Domains[domain.Name] = domain
-				m.eventBroadcast.Write(NewModelEvent("update", domain))
+				m.eventBuffer.events <- event
 			} else if info, ok := event.Model.(*RancherInfoType); ok {
 				m.onRancherInfo(info)
 			}
+
 		case "delete":
 			if sc, ok := event.Model.(*ServiceCluster); ok {
 				delete(m.Services, sc.Name)
-
+				m.eventBuffer.events <- event
 			} else if domain, ok := event.Model.(*Domain); ok {
 				delete(m.Domains, domain.Name)
 			}
+			m.eventBuffer.events <- event
 		}
+
+
 
 	}
 
@@ -314,13 +381,14 @@ func (m *Model) onRancherInfo(info *RancherInfoType) {
 
 			s, err := m.persistenceDriver.PersistService(service)
 
-			m.eventBroadcast.Write(NewModelEvent("update", s))
+
 
 			if err != nil {
 				log.Errorf("Error when persisting rancher update : %s", err.Error())
 				log.Errorf("Rancher update was : %s", info)
+			} else {
+				m.eventBuffer.events <- NewModelEvent("update", s)
 			}
-
 
 		}
 	}
