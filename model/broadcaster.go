@@ -13,6 +13,8 @@
 // limitations under the License.
 package model
 
+
+// Simple structure that implements a publish/subscribe mecanism.
 type Broadcaster struct {
 	listeners []chan interface{}
 }

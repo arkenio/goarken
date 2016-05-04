@@ -18,6 +18,9 @@ import (
 	"sync"
 )
 
+// A Service cluster holds a list of Service instances.
+// It provides a Next() method to get the next available
+// service with a round robin policy.
 type ServiceCluster struct {
 	Name      string     `json:"name"`
 	Instances []*Service `json:"instances"`
@@ -25,6 +28,7 @@ type ServiceCluster struct {
 	lock      sync.RWMutex
 }
 
+// Create a new Service cluster
 func NewServiceCluster(name string) *ServiceCluster {
 	sc := &ServiceCluster{
 		Name: name,
@@ -32,6 +36,9 @@ func NewServiceCluster(name string) *ServiceCluster {
 	return sc
 }
 
+
+// Returns the next available service instance for that cluster.
+// This may return a StatusError if no service is available.
 func (cl *ServiceCluster) Next() (*Service, error) {
 	if cl == nil {
 		return nil, StatusError{}
@@ -75,6 +82,7 @@ func (cl *ServiceCluster) Next() (*Service, error) {
 	return nil, StatusError{instance.Status.Compute(), lastStatus}
 }
 
+// Removes an instance in the cluster.
 func (cl *ServiceCluster) Remove(instanceIndex string) {
 
 	match := -1
@@ -98,6 +106,8 @@ func (cl *ServiceCluster) Get(instanceIndex string) *Service {
 	return nil
 }
 
+
+// Adds a service to the cluster
 func (cl *ServiceCluster) Add(service *Service) {
 
 	for index, v := range cl.Instances {
@@ -110,12 +120,15 @@ func (cl *ServiceCluster) Add(service *Service) {
 	cl.Instances = append(cl.Instances, service)
 }
 
+
+// Dump all service description to logs.
 func (cl *ServiceCluster) Dump(action string) {
 	for _, v := range cl.Instances {
 		log.Debugf("Dump after %s %s -> %s:%d", action, v.Index, v.Location.Host, v.Location.Port)
 	}
 }
 
+// Return the list of the cluster's instances.
 func (cl *ServiceCluster) GetInstances() []*Service {
 	return cl.Instances
 }

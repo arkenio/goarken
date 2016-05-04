@@ -46,10 +46,14 @@ func (s Location) String() string {
 	return fmt.Sprintf("%s:%d", s.Host, s.Port)
 }
 
+
+// Holds configuration of the service
 type ServiceConfig struct {
 	Robots      string                 `json:"robots"`
 	Environment map[string]interface{} `json:"environment,omitempty"`
+	// Rancher backed service information
 	RancherInfo *RancherInfoType       `json:"rancherInfo,omitempty"`
+	// Fleet backed service information
 	FleetInfo   *FleetInfoType         `json:"fleetInfo,omitempty"`
 }
 
@@ -79,6 +83,8 @@ func (config *ServiceConfig) Equals(other *ServiceConfig) bool {
 		config.Robots == other.Robots
 }
 
+
+// Holds information about a given service
 type Service struct {
 	Index      string         `json:"index"`
 	NodeKey    string         `json:"nodeKey"`

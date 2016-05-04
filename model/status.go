@@ -24,13 +24,23 @@ const (
 	PASSIVATED_STATUS = "passivated"
 )
 
+
+// Represents the combined status of a service
 type Status struct {
+	// Is the service alive
 	Alive    string   `json:"alive"`
+
+	// Current status of the service
 	Current  string   `json:"current"`
+
+	// Expected status of the service
 	Expected string   `json:"expected"`
+
 	Service  *Service `json:"-"`
 }
 
+
+// Creates a Status for a service with an initial value
 func NewInitialStatus(initialStatus string, service *Service) *Status {
 	return &Status{
 		Current:  initialStatus,
@@ -39,6 +49,8 @@ func NewInitialStatus(initialStatus string, service *Service) *Status {
 	}
 }
 
+
+// Represents an error for a given status.
 type StatusError struct {
 	ComputedStatus string
 	Status         *Status
@@ -57,6 +69,10 @@ func (s *Status) Equals(other *Status) bool {
 		s.Expected == other.Expected
 }
 
+
+
+// Computes the real status of the service made by the combination
+// of current and expected state.
 func (s *Status) Compute() string {
 
 	if s != nil {

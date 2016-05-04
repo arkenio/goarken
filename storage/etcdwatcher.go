@@ -38,8 +38,8 @@ var (
 	log           = logrus.New()
 )
 
-// A Watcher loads and watch the etcd hierarchy for Domains and Services and
-// updates the model according to etcd updates.
+// Watcher implements the PersistenceDriver interface of the Arken
+// Model and allows to store the model in etcd.
 type Watcher struct {
 	kapi          etcd.KeysAPI
 	broadcaster   *Broadcaster

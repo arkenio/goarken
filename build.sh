@@ -5,4 +5,8 @@ go get github.com/tools/godep
 
 godep restore
 godep go build ./...
-godep go test ./...
+godep go test
+godep go test ./storage
+godep go test ./drivers
+godep go test ./model
+

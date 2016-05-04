@@ -13,15 +13,28 @@
 // limitations under the License.
 package model
 
+
+// A driver knows how to create and manage Services.
 type ServiceDriver interface {
+	// Creates a service and start it if asked.
 	Create(s *Service, startOnCreate bool) (interface{}, error)
+
+	// Starts a given service
 	Start(s *Service) (interface{}, error)
+
+	// Stops a given service
 	Stop(s *Service) (interface{}, error)
+
+	// Destroys a given service
 	Destroy(s *Service) error
 
+	// Returns a channell where ModelEvent are published by the service driver
 	Listen() chan *ModelEvent
 }
 
+
+
+// This drivers allow to persist the model in a backend.
 type PersistenceDriver interface {
 	LoadAllServices() (map[string]*ServiceCluster, error)
 	LoadService(serviceName string) (*ServiceCluster, error)

@@ -17,12 +17,17 @@ import (
 	"errors"
 	"fmt"
 	"github.com/Sirupsen/logrus"
-	"sort"
 	"time"
 )
 
 var log = logrus.New()
 
+
+/*
+The Arken model is a structure that holds a map of Services and
+a map of Domain. A Model MUST be backed by a PersistenceDriver and
+MAY drivre ServiceDriver.
+ */
 type Model struct {
 	serviceDriver     ServiceDriver
 	persistenceDriver PersistenceDriver
@@ -33,6 +38,9 @@ type Model struct {
 	eventBuffer    *eventBuffer
 }
 
+
+// Create an ArkenModel base on a serviceDriver and a PersistenceDriver. The
+// ServiceDriver is optional.
 func NewArkenModel(sDriver ServiceDriver, pDriver PersistenceDriver) (*Model, error) {
 	if pDriver == nil {
 		return nil, errors.New("Can't use a nil persistence Driver for Arken model")
@@ -57,10 +65,17 @@ func NewArkenModel(sDriver ServiceDriver, pDriver PersistenceDriver) (*Model, er
 	}
 }
 
+
+// Returns a channel of ModelEvent where all changes in the model (Service or Domain)
+// are published.
 func (m *Model) Listen() chan *ModelEvent {
 	return FromInterfaceChannel(m.eventBroadcast.Listen())
 }
 
+
+
+// Inits the model. It loads the model from the persistence driver and then listen
+// to changes. It also starts listening on service driver updates.
 func (m *Model) Init() error {
 
 	//Load initial data
@@ -81,12 +96,16 @@ func (m *Model) Init() error {
 	if m.serviceDriver != nil {
 		go m.handlePersistenceModelEventOn(m.serviceDriver.Listen())
 	}
-	go m.eventBuffer.run()
+	go m.eventBuffer.run(time.Second)
 
 	return nil
 
 }
 
+
+
+// Creates a Service and starts it if asked. If the Domain of the service is provided, then the
+// corresponding domain is also created.
 func (m *Model) CreateService(service *Service, startOnCreate bool) (*Service, error) {
 
 	s, err := m.persistenceDriver.PersistService(service)
@@ -131,6 +150,8 @@ func (m *Model) CreateService(service *Service, startOnCreate bool) (*Service, e
 
 }
 
+
+// Creates a Domain
 func (m *Model) CreateDomain(domain *Domain) (*Domain, error) {
 	domain, err := m.persistenceDriver.PersistDomain(domain)
 	if err != nil {
@@ -141,6 +162,8 @@ func (m *Model) CreateDomain(domain *Domain) (*Domain, error) {
 	}
 }
 
+
+//Destroys a Domain
 func (m *Model) DestroyDomain(domain *Domain) error {
 
 	err := m.persistenceDriver.DestroyDomain(domain)
@@ -153,6 +176,8 @@ func (m *Model) DestroyDomain(domain *Domain) error {
 
 }
 
+
+// Updates a domain
 func (m *Model) UpdateDomain(domain *Domain) (*Domain, error) {
 	domain, err := m.persistenceDriver.PersistDomain(domain)
 	if err != nil {
@@ -163,6 +188,8 @@ func (m *Model) UpdateDomain(domain *Domain) (*Domain, error) {
 	}
 }
 
+
+// Starts a service (only works if ServiceDriver is set)
 func (m *Model) StartService(service *Service) (*Service, error) {
 
 	if m.serviceDriver != nil {
@@ -186,6 +213,8 @@ func (m *Model) StartService(service *Service) (*Service, error) {
 
 }
 
+
+// Stops a service (only works if ServiceDriver is set)
 func (m *Model) StopService(service *Service) (*Service, error) {
 	service.Status.Expected = STOPPED_STATUS
 	if m.serviceDriver != nil {
@@ -207,6 +236,8 @@ func (m *Model) StopService(service *Service) (*Service, error) {
 	}
 }
 
+
+// Passivates a service (only works if ServiceDriver is set)
 func (m *Model) PassivateService(service *Service) (*Service, error) {
 	service.Status.Expected = PASSIVATED_STATUS
 
@@ -227,6 +258,7 @@ func (m *Model) PassivateService(service *Service) (*Service, error) {
 	}
 }
 
+// Destroys a service (only works if ServiceDriver is set)
 func (m *Model) DestroyService(service *Service) error {
 	if m.serviceDriver != nil {
 		err := m.serviceDriver.Destroy(service)
@@ -244,6 +276,7 @@ func (m *Model) DestroyService(service *Service) error {
 	}
 }
 
+// Starts a service cluster (only works if ServiceDriver is set)
 func (m *Model) DestroyServiceCluster(sc *ServiceCluster) error {
 	for _, service := range sc.Instances {
 		if m.serviceDriver != nil {
@@ -260,7 +293,6 @@ func (m *Model) DestroyServiceCluster(sc *ServiceCluster) error {
 }
 
 func (m *Model) saveService(service *Service) (*Service, error) {
-
 	return m.persistenceDriver.PersistService(service)
 }
 
@@ -276,55 +308,6 @@ func (m *Model) updateInfoFromDriver(service *Service, info interface{}) {
 
 }
 
-type eventBuffer struct {
-	eventsMap      map[string]*ModelEvent
-	events         chan *ModelEvent
-	eventBroadcast *Broadcaster
-}
-
-func newEventBuffer(b *Broadcaster) *eventBuffer {
-	return &eventBuffer{
-		eventsMap:      make(map[string]*ModelEvent),
-		events:         make(chan *ModelEvent),
-		eventBroadcast: b,
-	}
-}
-
-func (eb *eventBuffer) run() {
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			events := make([]*ModelEvent,0, len(eb.eventsMap))
-			for _,v := range eb.eventsMap {
-				events = append(events, v)
-			}
-			sort.Sort(ModelByTime(events))
-
-			for _,event := range events {
-				eb.eventBroadcast.Write(event)
-				delete(eb.eventsMap, eb.keyFromModelEvent(event))
-			}
-			break
-		case event := <-eb.events:
-			eb.eventsMap[eb.keyFromModelEvent(event)] = event
-			break
-		}
-	}
-}
-
-func (eb *eventBuffer) keyFromModelEvent(event *ModelEvent) string {
-	if sc, ok := event.Model.(*ServiceCluster); ok {
-		return fmt.Sprintf("SC_%s_%s", event.EventType, sc.Name)
-	} else if domain, ok := event.Model.(*Domain); ok {
-		return fmt.Sprintf("D_%s_%s", event.EventType, domain.Name)
-	} else if service, ok := event.Model.(*Service); ok {
-		return fmt.Sprintf("S_%s_%s", event.EventType, service.Name)
-	}
-	return "unknown"
-}
 
 func (m *Model) handlePersistenceModelEventOn(eventStream chan *ModelEvent) {
 
