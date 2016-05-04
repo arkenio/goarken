@@ -84,7 +84,7 @@ func (m *Model) CreateService(service *Service, startOnCreate bool) (*Service, e
 	if m.serviceDriver != nil {
 		info, err := m.serviceDriver.Create(s, startOnCreate)
 		if err != nil {
-			return nil, errors.New(fmt.Sprintf("Unable to crea		te service in backend : %s", s.Name, err.Error()))
+			return nil, errors.New(fmt.Sprintf("Unable to create service in backend : %s", s.Name, err.Error()))
 		}
 
 		m.updateInfoFromDriver(s, info)
