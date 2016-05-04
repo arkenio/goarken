@@ -4,7 +4,7 @@
 go-arken
 ========
 
-[![Build Status](https://travis-ci.org/arkenio/go-arken.png?branch=master)](https://travis-ci.org/arkenio/go-arken)
+[![Build Status](https://travis-ci.org/arkenio/goarken.png?branch=master)](https://travis-ci.org/arkenio/goarken)
 
 Common Go libs to handle Arken model (domains, service)
 
