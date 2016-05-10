@@ -16,7 +16,7 @@ package model
 
 // A Domain in the Arken model is of a given and may point to a service (if type is service)
 type Domain struct {
-	NodeKey string
+	NodeKey string   `json:"-"`
 	Name    string
 	Typ     string
 	Value   string

@@ -52,9 +52,9 @@ type ServiceConfig struct {
 	Robots      string                 `json:"robots"`
 	Environment map[string]interface{} `json:"environment,omitempty"`
 	// Rancher backed service information
-	RancherInfo *RancherInfoType       `json:"rancherInfo,omitempty"`
+	RancherInfo *RancherInfoType       `json:"-"`
 	// Fleet backed service information
-	FleetInfo   *FleetInfoType         `json:"fleetInfo,omitempty"`
+	FleetInfo   *FleetInfoType         `json:"-"`
 }
 
 type RancherInfoType struct {
@@ -86,8 +86,8 @@ func (config *ServiceConfig) Equals(other *ServiceConfig) bool {
 
 // Holds information about a given service
 type Service struct {
-	Index      string         `json:"index"`
-	NodeKey    string         `json:"nodeKey"`
+	Index      string         `json:"-"`
+	NodeKey    string         `json:"-"`
 	Location   *Location      `json:"location"`
 	Domain     string         `json:"domain"`
 	Name       string         `json:"name"`
