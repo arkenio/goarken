@@ -17,9 +17,9 @@ package model
 // A Domain in the Arken model is of a given and may point to a service (if type is service)
 type Domain struct {
 	NodeKey string   `json:"-"`
-	Name    string
-	Typ     string
-	Value   string
+	Name    string	 `json:"name,omitempty"`
+	Typ     string	 `json:"type,omitempty"`
+	Value   string   `json:"value,omitempty"`
 }
 
 func (d *Domain) String() string {
