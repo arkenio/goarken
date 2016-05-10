@@ -52,9 +52,9 @@ type ServiceConfig struct {
 	Robots      string                 `json:"robots"`
 	Environment map[string]interface{} `json:"environment,omitempty"`
 	// Rancher backed service information
-	RancherInfo *RancherInfoType       `json:"-"`
+	RancherInfo *RancherInfoType       `json:"rancherInfo,omitempty"`
 	// Fleet backed service information
-	FleetInfo   *FleetInfoType         `json:"-"`
+	FleetInfo   *FleetInfoType         `json:"fleeInfo,omitempty"`
 }
 
 type RancherInfoType struct {
