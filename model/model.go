@@ -22,12 +22,11 @@ import (
 
 var log = logrus.New()
 
-
 /*
 The Arken model is a structure that holds a map of Services and
 a map of Domain. A Model MUST be backed by a PersistenceDriver and
 MAY drivre ServiceDriver.
- */
+*/
 type Model struct {
 	serviceDriver     ServiceDriver
 	persistenceDriver PersistenceDriver
@@ -37,7 +36,6 @@ type Model struct {
 	eventBroadcast *Broadcaster
 	eventBuffer    *eventBuffer
 }
-
 
 // Create an ArkenModel base on a serviceDriver and a PersistenceDriver. The
 // ServiceDriver is optional.
@@ -56,8 +54,6 @@ func NewArkenModel(sDriver ServiceDriver, pDriver PersistenceDriver) (*Model, er
 	model.eventBuffer = newEventBuffer(model.eventBroadcast)
 	err := model.Init()
 
-
-
 	if err == nil {
 		return model, nil
 	} else {
@@ -65,14 +61,11 @@ func NewArkenModel(sDriver ServiceDriver, pDriver PersistenceDriver) (*Model, er
 	}
 }
 
-
 // Returns a channel of ModelEvent where all changes in the model (Service or Domain)
 // are published.
 func (m *Model) Listen() chan *ModelEvent {
 	return FromInterfaceChannel(m.eventBroadcast.Listen())
 }
-
-
 
 // Inits the model. It loads the model from the persistence driver and then listen
 // to changes. It also starts listening on service driver updates.
@@ -91,15 +84,89 @@ func (m *Model) Init() error {
 	}
 	m.Services = services
 
+	// Listen to external events
 	go m.handlePersistenceModelEventOn(m.persistenceDriver.Listen())
 
 	if m.serviceDriver != nil {
 		go m.handlePersistenceModelEventOn(m.serviceDriver.Listen())
 	}
+
+	// Launch synchronization
+	go m.keepServiceDriverInSync(time.Duration(15) * time.Second)
+
+	// Launch event buffer
 	go m.eventBuffer.run(time.Second)
 
 	return nil
 
+}
+
+// Regulary fetch information from service driver, since we may have missed an update
+// event (arken stopped or something else).
+func (m *Model) keepServiceDriverInSync(duration time.Duration) {
+
+	startedTicker := time.NewTicker(duration)
+	allTicker := time.NewTicker(time.Duration(40) * duration)
+	defer startedTicker.Stop()
+	defer allTicker.Stop()
+
+	//Flag to prevent both ticker to be executed at the same time
+	allTickerPassed := false
+	for {
+		select {
+		case <-allTicker.C:
+			m.syncServiceByStatus(nil)
+			allTickerPassed = true
+		case <-startedTicker.C:
+			if allTickerPassed == false {
+				m.syncServiceByStatus([]string{"started", "error"})
+			} else {
+				allTickerPassed = false
+			}
+		}
+	}
+}
+
+// Launch a synchronize on all Service that are in one of the given statuses
+func (m *Model) syncServiceByStatus(status []string) {
+	m.onAllService(func(service *Service) {
+		if status == nil || inArray(status, service.Status.Compute()) {
+			m.SyncService(service)
+		}
+	})
+}
+
+// Synchronize ServiceDriver state with internal Arken state
+func (m *Model) SyncService(service *Service) {
+	info, err := m.serviceDriver.GetInfo(service)
+	if err != nil {
+		log.Warningf("Unable to get Status from service driver on %v", service.Name)
+	} else {
+		if info, ok := info.(*RancherInfoType); ok {
+			m.onRancherInfo(info)
+		}
+	}
+}
+
+// Looks for a string in a string array and return true if the string is found.
+// This method is suitable for small array since it does a sequential scan on it.
+func inArray(array []string, seek string) bool {
+	for _,str := range array {
+		if str == seek {
+			return true
+		}
+	}
+	return false
+}
+
+
+// Helper to execute a function on each service of the model
+func (m *Model) onAllService(serviceHandler func(s *Service)) {
+	for _, serviceCluster := range m.Services {
+		for _, service := range serviceCluster.GetInstances() {
+			serviceHandler(service)
+		}
+	}
 }
 
 
@@ -150,7 +217,6 @@ func (m *Model) CreateService(service *Service, startOnCreate bool) (*Service, e
 
 }
 
-
 // Creates a Domain
 func (m *Model) CreateDomain(domain *Domain) (*Domain, error) {
 	domain, err := m.persistenceDriver.PersistDomain(domain)
@@ -161,7 +227,6 @@ func (m *Model) CreateDomain(domain *Domain) (*Domain, error) {
 		return domain, nil
 	}
 }
-
 
 //Destroys a Domain
 func (m *Model) DestroyDomain(domain *Domain) error {
@@ -176,7 +241,6 @@ func (m *Model) DestroyDomain(domain *Domain) error {
 
 }
 
-
 // Updates a domain
 func (m *Model) UpdateDomain(domain *Domain) (*Domain, error) {
 	domain, err := m.persistenceDriver.PersistDomain(domain)
@@ -187,7 +251,6 @@ func (m *Model) UpdateDomain(domain *Domain) (*Domain, error) {
 		return domain, nil
 	}
 }
-
 
 // Starts a service (only works if ServiceDriver is set)
 func (m *Model) StartService(service *Service) (*Service, error) {
@@ -213,7 +276,6 @@ func (m *Model) StartService(service *Service) (*Service, error) {
 
 }
 
-
 // Stops a service (only works if ServiceDriver is set)
 func (m *Model) StopService(service *Service) (*Service, error) {
 	service.Status.Expected = STOPPED_STATUS
@@ -235,7 +297,6 @@ func (m *Model) StopService(service *Service) (*Service, error) {
 		return service, nil
 	}
 }
-
 
 // Passivates a service (only works if ServiceDriver is set)
 func (m *Model) PassivateService(service *Service) (*Service, error) {
@@ -308,7 +369,6 @@ func (m *Model) updateInfoFromDriver(service *Service, info interface{}) {
 
 }
 
-
 func (m *Model) handlePersistenceModelEventOn(eventStream chan *ModelEvent) {
 
 	for {
@@ -336,8 +396,6 @@ func (m *Model) handlePersistenceModelEventOn(eventStream chan *ModelEvent) {
 			}
 			m.eventBuffer.events <- event
 		}
-
-
 
 	}
 
@@ -376,8 +434,6 @@ func (m *Model) onRancherInfo(info *RancherInfoType) {
 			}
 
 			s, err := m.persistenceDriver.PersistService(service)
-
-
 
 			if err != nil {
 				log.Errorf("Error when persisting rancher update : %s", err.Error())

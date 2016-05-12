@@ -126,23 +126,26 @@ func (r *RancherServiceDriver) watch(c *websocket.Conn) {
 				if err != nil {
 					log.Printf(err.Error())
 				} else {
-					//TODO : detect wich service of the stack must be proxied by gogeta by iterating over containers labels
-					info := &RancherInfoType{
-						EnvironmentId:   publish.ResourceId,
-						EnvironmentName: result.Name,
-						Location:        &Location{Host: fmt.Sprintf("lb.%s", result.Name), Port: 80},
-						HealthState:     result.HealthState,
-						CurrentStatus:   convertRancherHealthToStatus(result.HealthState),
-					}
-
+					info := rancherInfoTypeFromEnvironment(&result)
+					info.EnvironmentId = publish.ResourceId
 					r.broadcaster.Write(NewModelEvent("update", info))
-
 				}
 				break
 			}
 		}
 	}
 
+}
+
+
+func rancherInfoTypeFromEnvironment(e *client.Environment) *RancherInfoType {
+	return &RancherInfoType{
+		EnvironmentId:   e.Id,
+		EnvironmentName: e.Name,
+		Location:        &Location{Host: fmt.Sprintf("lb.%s", e.Name), Port: 80},
+		HealthState:     e.HealthState,
+		CurrentStatus:   convertRancherHealthToStatus(e.HealthState),
+	}
 }
 
 func convertRancherHealthToStatus(health string) string {
@@ -234,4 +237,18 @@ func (r *RancherServiceDriver) Listen() chan *ModelEvent {
 func basicAuth(username, password string) string {
 	auth := username + ":" + password
 	return base64.StdEncoding.EncodeToString([]byte(auth))
+}
+
+// Return the RancheInfotype for the given service
+func (r *RancherServiceDriver) GetInfo(s *Service) (interface{}, error) {
+	rancherId := s.Config.RancherInfo.EnvironmentId
+
+	env, error := r.rancherClient.Environment.ById(rancherId)
+	if error != nil {
+		return  nil, error
+	} else {
+		return rancherInfoTypeFromEnvironment(env), nil
+	}
+
+
 }

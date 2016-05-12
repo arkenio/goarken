@@ -30,6 +30,9 @@ type ServiceDriver interface {
 
 	// Returns a channell where ModelEvent are published by the service driver
 	Listen() chan *ModelEvent
+
+	// Returns the driver's information for a given service
+	GetInfo(s *Service) (interface{}, error)
 }
 
 
