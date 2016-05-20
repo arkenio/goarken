@@ -164,7 +164,7 @@ func (r *RancherServiceDriver) Create(s *Service, startOnCreate bool) (interface
 
 	info := s.Config.RancherInfo
 
-	if info.TemplateId == "" {
+	if info == nil || info.TemplateId == "" {
 		return nil, errors.New("Rancher template has to be specified !")
 	}
 	log.Infof("Looking for template %s", info.TemplateId)
