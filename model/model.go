@@ -151,14 +151,13 @@ func (m *Model) SyncService(service *Service) {
 // Looks for a string in a string array and return true if the string is found.
 // This method is suitable for small array since it does a sequential scan on it.
 func inArray(array []string, seek string) bool {
-	for _,str := range array {
+	for _, str := range array {
 		if str == seek {
 			return true
 		}
 	}
 	return false
 }
-
 
 // Helper to execute a function on each service of the model
 func (m *Model) onAllService(serviceHandler func(s *Service)) {
@@ -168,8 +167,6 @@ func (m *Model) onAllService(serviceHandler func(s *Service)) {
 		}
 	}
 }
-
-
 
 // Creates a Service and starts it if asked. If the Domain of the service is provided, then the
 // corresponding domain is also created.
@@ -308,7 +305,7 @@ func (m *Model) PassivateService(service *Service) (*Service, error) {
 	}
 
 	m.updateInfoFromDriver(service, info)
-
+	service.Status.Current = PASSIVATED_STATUS
 	service, err = m.saveService(service)
 
 	if err != nil {

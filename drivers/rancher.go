@@ -137,7 +137,6 @@ func (r *RancherServiceDriver) watch(c *websocket.Conn) {
 
 }
 
-
 func rancherInfoTypeFromEnvironment(e *client.Environment) *RancherInfoType {
 	return &RancherInfoType{
 		EnvironmentId:   e.Id,
@@ -245,10 +244,9 @@ func (r *RancherServiceDriver) GetInfo(s *Service) (interface{}, error) {
 
 	env, error := r.rancherClient.Environment.ById(rancherId)
 	if error != nil {
-		return  nil, error
+		return nil, error
 	} else {
 		return rancherInfoTypeFromEnvironment(env), nil
 	}
-
 
 }

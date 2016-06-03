@@ -46,15 +46,15 @@ func (s Location) String() string {
 	return fmt.Sprintf("%s:%d", s.Host, s.Port)
 }
 
-
 // Holds configuration of the service
 type ServiceConfig struct {
 	Robots      string                 `json:"robots"`
 	Environment map[string]interface{} `json:"environment,omitempty"`
 	// Rancher backed service information
-	RancherInfo *RancherInfoType       `json:"rancherInfo,omitempty"`
+	RancherInfo *RancherInfoType `json:"rancherInfo,omitempty"`
 	// Fleet backed service information
-	FleetInfo   *FleetInfoType         `json:"fleeInfo,omitempty"`
+	FleetInfo   *FleetInfoType     `json:"fleeInfo,omitempty"`
+	Passivation *PassivationConfig `json:"passivationConfig,omitempty`
 }
 
 type RancherInfoType struct {
@@ -83,7 +83,6 @@ func (config *ServiceConfig) Equals(other *ServiceConfig) bool {
 		config.Robots == other.Robots
 }
 
-
 // Holds information about a given service
 type Service struct {
 	Index      string         `json:"-"`
@@ -102,8 +101,11 @@ func (s *Service) Init() *Service {
 	s.Index = "1"
 
 	status := NewInitialStatus(STOPPED_STATUS, s)
+
 	s.Status = status
-	s.Config = &ServiceConfig{}
+	s.Config = &ServiceConfig{
+		Passivation: DefaultPassivation(),
+	}
 
 	return s
 

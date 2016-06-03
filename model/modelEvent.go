@@ -26,10 +26,9 @@ type ModelEvent struct {
 	Time      time.Time
 }
 
-
 // Creates a new ModelEvent
 func NewModelEvent(eventType string, model interface{}) *ModelEvent {
-	return &ModelEvent{eventType,getModelType(model), model, time.Now()}
+	return &ModelEvent{eventType, getModelType(model), model, time.Now()}
 }
 
 // Return the event ModelType
@@ -44,7 +43,6 @@ func getModelType(model interface{}) string {
 		return "Unknown"
 	}
 }
-
 
 // Transform a generic interface channel to a *ModelEvent channel
 func FromInterfaceChannel(fromChannel chan interface{}) chan *ModelEvent {
@@ -64,9 +62,6 @@ func FromInterfaceChannel(fromChannel chan interface{}) chan *ModelEvent {
 
 }
 
-
-
-
 // This type allow to sort ModelEvents by creation time.
 type ModelByTime []*ModelEvent
 
@@ -74,14 +69,13 @@ func (m ModelByTime) Len() int {
 	return len(m)
 }
 
-func (m ModelByTime) Swap(i,j int) {
+func (m ModelByTime) Swap(i, j int) {
 	m[i], m[j] = m[j], m[i]
 }
 
 func (m ModelByTime) Less(i, j int) bool {
 	return m[i].Time.Before(m[j].Time)
 }
-
 
 func (me *ModelEvent) String() string {
 	return fmt.Sprintf("%s on  [%s] %s", me.EventType, me.ModelType, me.Model)

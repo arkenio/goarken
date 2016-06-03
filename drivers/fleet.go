@@ -93,5 +93,5 @@ func (f *FleetServiceDriver) Listen() chan *ModelEvent {
 }
 
 func (f *FleetServiceDriver) GetInfo(s *Service) (interface{}, error) {
-	return &FleetInfoType{ UnitName: unitNameFromService(s)},nil
+	return &FleetInfoType{UnitName: unitNameFromService(s)}, nil
 }

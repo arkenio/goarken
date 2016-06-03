@@ -64,6 +64,10 @@ func (sd *MockServiceDriver) Listen() chan *ModelEvent {
 	return FromInterfaceChannel(sd.events.Listen())
 }
 
+func (sd *MockServiceDriver) GetInfo(s *Service) (interface{}, error) {
+	return &RancherInfoType{EnvironmentId: "rancherId"}, nil
+}
+
 func (w *MockServiceDriver) StopDriver() {
 
 }
@@ -189,23 +193,21 @@ func Test_EtcdWatcher(t *testing.T) {
 			})
 		})
 
-		Convey("Given a started a service ",func() {
+		Convey("Given a started a service ", func() {
 			service := &Service{}
 			service.Init()
 			service.Name = "testService"
-			model.CreateService(service, true);
+			model.CreateService(service, true)
 
-
-			Convey("When i passivate the service",func() {
+			Convey("When i passivate the service", func() {
 				initial := sd.calls["stop"]
 				service, err = model.PassivateService(service)
 				Convey("Then the service is stopped and in passivated status", func() {
 					So(err, ShouldBeNil)
 					So(service.Status.Compute(), ShouldEqual, PASSIVATED_STATUS)
-					So(sd.calls["stop"], ShouldEqual, initial + 1)
+					So(sd.calls["stop"], ShouldEqual, initial+1)
 				})
 			})
-
 
 		})
 

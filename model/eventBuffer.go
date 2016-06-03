@@ -14,9 +14,9 @@
 package model
 
 import (
-	"time"
-	"sort"
 	"fmt"
+	"sort"
+	"time"
 )
 
 // Simple struct that accumulate Model events in a map
@@ -26,7 +26,6 @@ type eventBuffer struct {
 	events         chan *ModelEvent
 	eventBroadcast *Broadcaster
 }
-
 
 // Creates a new eventBuffer. Buffer has to be started by
 // the run() method in order to periodically unbeffer events.
@@ -38,7 +37,6 @@ func newEventBuffer(b *Broadcaster) *eventBuffer {
 	}
 }
 
-
 // Starts the eventBuffer by accepting new Model event
 // and unbuffering at each duration
 func (eb *eventBuffer) run(duration time.Duration) {
@@ -48,13 +46,13 @@ func (eb *eventBuffer) run(duration time.Duration) {
 	for {
 		select {
 		case <-ticker.C:
-			events := make([]*ModelEvent,0, len(eb.eventsMap))
-			for _,v := range eb.eventsMap {
+			events := make([]*ModelEvent, 0, len(eb.eventsMap))
+			for _, v := range eb.eventsMap {
 				events = append(events, v)
 			}
 			sort.Sort(ModelByTime(events))
 
-			for _,event := range events {
+			for _, event := range events {
 				eb.eventBroadcast.Write(event)
 				delete(eb.eventsMap, eb.keyFromModelEvent(event))
 			}

@@ -36,7 +36,6 @@ func NewServiceCluster(name string) *ServiceCluster {
 	return sc
 }
 
-
 // Returns the next available service instance for that cluster.
 // This may return a StatusError if no service is available.
 func (cl *ServiceCluster) Next() (*Service, error) {
@@ -106,7 +105,6 @@ func (cl *ServiceCluster) Get(instanceIndex string) *Service {
 	return nil
 }
 
-
 // Adds a service to the cluster
 func (cl *ServiceCluster) Add(service *Service) {
 
@@ -119,7 +117,6 @@ func (cl *ServiceCluster) Add(service *Service) {
 
 	cl.Instances = append(cl.Instances, service)
 }
-
 
 // Dump all service description to logs.
 func (cl *ServiceCluster) Dump(action string) {

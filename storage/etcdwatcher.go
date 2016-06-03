@@ -274,17 +274,11 @@ func newService(serviceNode *etcd.Node) (*Service, error) {
 			}
 
 		case service.NodeKey + "/config":
-			for _, subNode := range node.Nodes {
-				switch subNode.Key {
-				case service.NodeKey + "/config/gogeta":
-					serviceConfig := &ServiceConfig{}
-					err := json.Unmarshal([]byte(subNode.Value), serviceConfig)
-					if err == nil {
-						service.Config = serviceConfig
-					}
-				}
+			serviceConfig := &ServiceConfig{}
+			err := json.Unmarshal([]byte(node.Value), serviceConfig)
+			if err == nil {
+				service.Config = serviceConfig
 			}
-
 		case service.NodeKey + "/domain":
 			service.Domain = node.Value
 		case service.NodeKey + "/lastAccess":
@@ -336,7 +330,7 @@ func (w *Watcher) PersistService(s *Service) (*Service, error) {
 
 			bytes, err2 = json.Marshal(s.Config)
 			if err2 == nil {
-				_, err = w.kapi.Set(context.Background(), fmt.Sprintf("%s/config/gogeta", s.NodeKey), string(bytes), nil)
+				_, err = w.kapi.Set(context.Background(), fmt.Sprintf("%s/config", s.NodeKey), string(bytes), nil)
 			} else {
 				err = err2
 			}
@@ -361,7 +355,7 @@ func (w *Watcher) PersistService(s *Service) (*Service, error) {
 		if err == nil {
 			bytes, err := json.Marshal(s.Config)
 			if err == nil {
-				_, err = w.kapi.Create(context.Background(), fmt.Sprintf("%s/config/gogeta", s.NodeKey), string(bytes))
+				_, err = w.kapi.Create(context.Background(), fmt.Sprintf("%s/config", s.NodeKey), string(bytes))
 			}
 		}
 		if err == nil {

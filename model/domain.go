@@ -13,19 +13,17 @@
 // limitations under the License.
 package model
 
-
 // A Domain in the Arken model is of a given and may point to a service (if type is service)
 type Domain struct {
-	NodeKey string   `json:"-"`
-	Name    string	 `json:"name,omitempty"`
-	Typ     string	 `json:"type,omitempty"`
-	Value   string   `json:"value,omitempty"`
+	NodeKey string `json:"-"`
+	Name    string `json:"name,omitempty"`
+	Typ     string `json:"type,omitempty"`
+	Value   string `json:"value,omitempty"`
 }
 
 func (d *Domain) String() string {
 	return d.Value + " at " + d.NodeKey
 }
-
 
 func (domain *Domain) Equals(other *Domain) bool {
 	if domain == nil && other == nil {

@@ -13,7 +13,6 @@
 // limitations under the License.
 package model
 
-
 // A driver knows how to create and manage Services.
 type ServiceDriver interface {
 	// Creates a service and start it if asked.
@@ -34,8 +33,6 @@ type ServiceDriver interface {
 	// Returns the driver's information for a given service
 	GetInfo(s *Service) (interface{}, error)
 }
-
-
 
 // This drivers allow to persist the model in a backend.
 type PersistenceDriver interface {
