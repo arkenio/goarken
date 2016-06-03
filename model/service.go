@@ -53,8 +53,8 @@ type ServiceConfig struct {
 	// Rancher backed service information
 	RancherInfo *RancherInfoType `json:"rancherInfo,omitempty"`
 	// Fleet backed service information
-	FleetInfo   *FleetInfoType     `json:"fleeInfo,omitempty"`
-	Passivation *PassivationConfig `json:"passivationConfig,omitempty`
+	FleetInfo   *FleetInfoType     `json:"fleetInfo,omitempty"`
+	Passivation *PassivationConfig `json:"passivation,omitempty`
 }
 
 type RancherInfoType struct {
