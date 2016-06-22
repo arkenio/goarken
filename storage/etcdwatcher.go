@@ -506,10 +506,11 @@ func (w *Watcher) PersistDomain(d *Domain) (*Domain, error) {
 	if d.NodeKey != "" {
 		resp, err := w.kapi.Get(context.Background(), d.NodeKey, &etcd.GetOptions{Recursive: true, Sort: false})
 
-		oldDomain, _ := NewDomain(resp.Node)
+
 		if err != nil {
 			return nil, err
 		} else {
+			oldDomain, _ := NewDomain(resp.Node)
 			if oldDomain.Typ != d.Typ {
 				w.kapi.Set(context.Background(), fmt.Sprintf("%s/type", d.NodeKey), d.Typ, &etcd.SetOptions{PrevExist: etcd.PrevExist})
 			}

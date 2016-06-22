@@ -48,6 +48,13 @@ func (sd *MockServiceDriver) Start(s *Service) (interface{}, error) {
 	return &RancherInfoType{EnvironmentId: "rancherId"}, nil
 }
 
+func (sd *MockServiceDriver) Upgrade(s *Service) (interface{}, error) {
+	sd.calls["upgrade"] = sd.calls["upgrade"] + 1
+	sd.events.Write(NewModelEvent("update", s))
+	return &RancherInfoType{EnvironmentId: "rancherId"}, nil
+}
+
+
 func (sd *MockServiceDriver) Stop(s *Service) (interface{}, error) {
 	sd.calls["stop"] = sd.calls["stop"] + 1
 	sd.events.Write(NewModelEvent("update", s))
@@ -71,6 +78,12 @@ func (sd *MockServiceDriver) GetInfo(s *Service) (interface{}, error) {
 func (w *MockServiceDriver) StopDriver() {
 
 }
+
+
+func (w *MockServiceDriver) NeedToBeUpgraded(s *Service) (bool,error) {
+	return false,nil
+}
+
 
 func Test_EtcdWatcher(t *testing.T) {
 	//Wait for potential other etcd cluster to stop

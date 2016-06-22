@@ -27,11 +27,13 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"reflect"
+	"strings"
 )
 
 var (
 	rancherHostRegexp = regexp.MustCompile("http.*/projects/(.*)")
-	log               = logrus.New()
+	log = logrus.New()
 )
 
 type RancherServiceDriver struct {
@@ -144,6 +146,7 @@ func rancherInfoTypeFromEnvironment(e *client.Environment) *RancherInfoType {
 		Location:        &Location{Host: fmt.Sprintf("lb.%s", e.Name), Port: 80},
 		HealthState:     e.HealthState,
 		CurrentStatus:   convertRancherHealthToStatus(e.HealthState),
+		TemplateId: strings.Replace(e.ExternalId,"catalog://","",1),
 	}
 }
 
@@ -159,8 +162,8 @@ func convertRancherHealthToStatus(health string) string {
 	return STOPPED_STATUS
 }
 
-func (r *RancherServiceDriver) Create(s *Service, startOnCreate bool) (interface{}, error) {
 
+func (r *RancherServiceDriver) computeEnvFromService(s *Service) (*client.Environment, error) {
 	info := s.Config.RancherInfo
 
 	if info == nil || info.TemplateId == "" {
@@ -175,13 +178,25 @@ func (r *RancherServiceDriver) Create(s *Service, startOnCreate bool) (interface
 
 	//Start rancher environment
 	env := &client.Environment{}
-	env.StartOnCreate = startOnCreate
 	env.Name = s.Name
 	env.Environment = s.Config.Environment
 	env.DockerCompose = extractFileContent(template, "docker-compose.yml")
 	env.RancherCompose = extractFileContent(template, "rancher-compose.yml")
+	env.ExternalId = "catalog://" + info.TemplateId
+	return env, nil
+}
+
+func (r *RancherServiceDriver) Create(s *Service, startOnCreate bool) (interface{}, error) {
 
 	log.Infof("Creating stack %s on rancher", s.Name)
+	env, err := r.computeEnvFromService(s)
+
+	if (err != nil) {
+		return nil, err
+	}
+
+	env.StartOnCreate = startOnCreate
+
 	env, err = r.rancherClient.Environment.Create(env)
 
 	if err != nil {
@@ -192,6 +207,74 @@ func (r *RancherServiceDriver) Create(s *Service, startOnCreate bool) (interface
 	return &RancherInfoType{EnvironmentId: env.Id}, nil
 
 }
+
+func (r *RancherServiceDriver) NeedToBeUpgraded(s *Service) (bool, error) {
+
+	newEnv, err := r.computeEnvFromService(s)
+
+	if err != nil {
+		return false, err
+	}
+
+	rancherId := s.Config.RancherInfo.EnvironmentId
+	actualEnv, err := r.rancherClient.Environment.ById(rancherId)
+	if err != nil {
+		return false, err
+	}
+
+	return reflect.DeepEqual(newEnv.Environment, actualEnv.Environment) &&
+	newEnv.DockerCompose == actualEnv.DockerCompose &&
+	newEnv.RancherCompose == actualEnv.RancherCompose, nil
+
+}
+
+func (r *RancherServiceDriver) Upgrade(s *Service) (interface{}, error) {
+
+	log.Infof("Upgrading environment %s",s.Name)
+
+	rancherId := s.Config.RancherInfo.EnvironmentId
+	env, err := r.rancherClient.Environment.ById(rancherId)
+
+	if err != nil {
+		log.Errorf("Error when retrieving environment: %v",err)
+	}
+
+	info := s.Config.RancherInfo
+
+	if info == nil || info.TemplateId == "" {
+		log.Errorf("Rancher template has to be specified : %v",info)
+		return nil, errors.New("Rancher template has to be specified !")
+	}
+
+	log.Infof("    Template: %s", info.TemplateId)
+	log.Infof("	   Environment: %v", s.Config.Environment)
+
+	template, err := r.rancherCatClient.Template.ById(info.TemplateId)
+	if err != nil {
+		log.Errorf("Template not found : %v", info.TemplateId)
+		return nil, err
+	}
+
+	envUpgrade := &client.EnvironmentUpgrade{
+		DockerCompose: extractFileContent(template, "docker-compose.yml"),
+		RancherCompose : extractFileContent(template, "rancher-compose.yml"),
+		Environment : s.Config.Environment,
+	}
+
+
+
+
+
+
+	env, err = r.rancherClient.Environment.ActionUpgrade(env, envUpgrade)
+
+	if(err != nil) {
+		log.Errorf("Environment upgrade failed in rancher : %v",err)
+	}
+
+	return s, err
+}
+
 
 func extractFileContent(template *catalogclient.Template, filename string) string {
 	if content, ok := template.Files[filename].(string); ok {

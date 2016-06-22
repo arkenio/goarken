@@ -44,6 +44,17 @@ func (f *FleetServiceDriver) Stop(s *Service) (interface{}, error) {
 	return s, err
 }
 
+
+func (f *FleetServiceDriver) Upgrade(s *Service) (interface{}, error) {
+	err := f.fleetcmd(s, "stop")
+	if(err != nil) {
+		return nil, err;
+	}
+	err = f.fleetcmd(s, "start")
+	return s, err
+}
+
+
 func (f *FleetServiceDriver) Passivate(s *Service) (interface{}, error) {
 	log.Info(fmt.Sprintf("Passivating service %s", s.Name))
 	err := f.fleetcmd(s, "destroy")
@@ -94,4 +105,8 @@ func (f *FleetServiceDriver) Listen() chan *ModelEvent {
 
 func (f *FleetServiceDriver) GetInfo(s *Service) (interface{}, error) {
 	return &FleetInfoType{UnitName: unitNameFromService(s)}, nil
+}
+
+func (r *FleetServiceDriver) NeedToBeUpgraded(s *Service) (bool, error) {
+	return false, nil
 }

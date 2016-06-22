@@ -31,10 +31,10 @@ type Model struct {
 	serviceDriver     ServiceDriver
 	persistenceDriver PersistenceDriver
 
-	Domains        map[string]*Domain
-	Services       map[string]*ServiceCluster
-	eventBroadcast *Broadcaster
-	eventBuffer    *eventBuffer
+	Domains           map[string]*Domain
+	Services          map[string]*ServiceCluster
+	eventBroadcast    *Broadcaster
+	eventBuffer       *eventBuffer
 }
 
 // Create an ArkenModel base on a serviceDriver and a PersistenceDriver. The
@@ -314,6 +314,88 @@ func (m *Model) PassivateService(service *Service) (*Service, error) {
 		m.eventBuffer.events <- NewModelEvent("update", service)
 		return service, nil
 	}
+}
+
+
+func (m *Model) UpdateService(service *Service) (*Service, error) {
+
+
+	if serviceCluster, ok := m.Services[service.Name]; !ok {
+		return nil, errors.New("Service not found")
+	} else {
+
+		for _, origService := range serviceCluster.GetInstances() {
+			if service.Config != nil {
+
+				if service.Config.Environment != nil {
+					origService.Config.Environment = service.Config.Environment
+				}
+
+				if service.Config.Passivation != nil {
+					origService.Config.Passivation = service.Config.Passivation
+				}
+			}
+
+
+			//Updates the domain of the service
+			if service.Domain != "" && service.Domain != origService.Domain {
+				if oldDomain, ok := m.Domains[origService.Domain]; ok {
+					m.DestroyDomain(oldDomain)
+
+					if domain, ok := m.Domains[service.Domain]; ok {
+						domain.Typ = "service"
+						domain.Value = service.Name
+						_, err := m.UpdateDomain(domain)
+						if err != nil {
+							log.Errorf("Unable to update domain %s for service %s : %v", service.Domain, service.Name, err)
+						}
+					} else {
+						_, err := m.CreateDomain(&Domain{Name: service.Domain, Typ: "service", Value: service.Name})
+						if err != nil {
+							log.Errorf("Unable to create domain %s for service %s : %v", service.Domain, service.Name, err)
+						}
+					}
+				}
+
+
+				origService.Domain = service.Domain
+
+			}
+
+			m.saveService(origService)
+		}
+		return m.Services[service.Name].GetInstances()[0], nil
+	}
+}
+
+func (m *Model) NeedToBeUpgraded(service *Service) (bool, error) {
+	if _, ok := m.Services[service.Name]; !ok {
+		return false, errors.New("Service not found")
+	} else {
+		return m.serviceDriver.NeedToBeUpgraded(service)
+
+	}
+}
+
+
+func (m *Model) UpgradeService(service *Service) (*Service, error) {
+
+
+	if serviceCluster, ok := m.Services[service.Name]; !ok {
+		return nil, errors.New("Service not found")
+	} else {
+		for _, s := range serviceCluster.GetInstances() {
+			_, err := m.serviceDriver.Upgrade(s)
+			if err != nil {
+				return nil, err
+			} else {
+				return s, nil
+			}
+		}
+		return nil, errors.New("No service in cluster ! Doh !")
+	}
+
+
 }
 
 // Destroys a service (only works if ServiceDriver is set)

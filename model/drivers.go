@@ -21,6 +21,10 @@ type ServiceDriver interface {
 	// Starts a given service
 	Start(s *Service) (interface{}, error)
 
+	// Upgrades a given service
+	// Starts a given service
+	Upgrade(s *Service) (interface{}, error)
+
 	// Stops a given service
 	Stop(s *Service) (interface{}, error)
 
@@ -32,6 +36,10 @@ type ServiceDriver interface {
 
 	// Returns the driver's information for a given service
 	GetInfo(s *Service) (interface{}, error)
+
+
+	// Tells if the service need to be upgrade when compared to its definition
+	NeedToBeUpgraded(s *Service) (bool, error)
 }
 
 // This drivers allow to persist the model in a backend.
