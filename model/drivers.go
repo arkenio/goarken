@@ -22,8 +22,13 @@ type ServiceDriver interface {
 	Start(s *Service) (interface{}, error)
 
 	// Upgrades a given service
-	// Starts a given service
 	Upgrade(s *Service) (interface{}, error)
+
+	//Finishes the upgrade 
+	FinishUpgrade(s *Service) (interface{}, error)
+	
+	//Rollbacks after the upgrade
+	Rollback(s *Service) (interface{}, error)
 
 	// Stops a given service
 	Stop(s *Service) (interface{}, error)

@@ -54,6 +54,13 @@ func (f *FleetServiceDriver) Upgrade(s *Service) (interface{}, error) {
 	return s, err
 }
 
+func (f *FleetServiceDriver) FinishUpgrade(s *Service) (interface{}, error) {
+	return nil, errors.New("Not implemented")
+}
+
+func (f *FleetServiceDriver) Rollback(s *Service) (interface{}, error) {
+	return nil, errors.New("Not implemented")
+}
 
 func (f *FleetServiceDriver) Passivate(s *Service) (interface{}, error) {
 	log.Info(fmt.Sprintf("Passivating service %s", s.Name))
