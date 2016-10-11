@@ -365,7 +365,6 @@ func (m *Model) UpdateService(service *Service) (*Service, error) {
 				log.Errorf("Unable to read service %s : %v ", service.Name, err)
 			}
 			if updated {
-				log.Infof("Needs to be upgarded")
 				AddAction(origService, UPGRADE_ACTION)
 			}
 

@@ -276,7 +276,7 @@ func (r *RancherServiceDriver) Upgrade(s *Service) (interface{}, error) {
 func (r *RancherServiceDriver) FinishUpgrade(s *Service) (interface{}, error) {
 
 	log.Infof("Finishing upgrading environment %s", s.Name)
-	
+
 	rancherId := s.Config.RancherInfo.EnvironmentId
 	env, err := r.rancherClient.Environment.ById(rancherId)
 
@@ -296,7 +296,7 @@ func (r *RancherServiceDriver) FinishUpgrade(s *Service) (interface{}, error) {
 func (r *RancherServiceDriver) Rollback(s *Service) (interface{}, error) {
 
 	log.Infof("Rollbacking environment %s", s.Name)
-	
+
 	rancherId := s.Config.RancherInfo.EnvironmentId
 	env, err := r.rancherClient.Environment.ById(rancherId)
 

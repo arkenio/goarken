@@ -335,9 +335,8 @@ func (w *Watcher) PersistService(s *Service) (*Service, error) {
 			} else {
 				err = err2
 			}
-
-			if len(s.Actions) > 0 { //don't perists actions on intermediate states
-				bytes, err2 = json.Marshal(s.Actions)
+			if len(s.Actions.([]string)) > 0 { //don't perists actions on intermediate states
+				bytes, err2 = json.Marshal(s.Actions.([]string))
 				if err2 == nil {
 					_, err = w.kapi.Set(context.Background(), fmt.Sprintf("%s/actions", s.NodeKey), string(bytes), nil)
 				} else {
@@ -376,7 +375,7 @@ func (w *Watcher) PersistService(s *Service) (*Service, error) {
 			}
 		}
 		if err == nil {
-			bytes, err := json.Marshal(s.Actions)
+			bytes, err := json.Marshal(s.Actions.([]string))
 			if err == nil {
 				_, err = w.kapi.Create(context.Background(), fmt.Sprintf("%s/actions", s.NodeKey), string(bytes))
 			}

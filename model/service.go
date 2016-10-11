@@ -91,11 +91,12 @@ type Service struct {
 	Domain     string         `json:"domain"`
 	Name       string         `json:"name"`
 	Status     *Status        `json:"status"`
-	Actions    []string       `json:"actions"` 
+	Actions    interface{}  `json:"actions"` 
 	LastAccess *time.Time     `json:"lastAccess"`
 	Config     *ServiceConfig `json:"config"`
 	log        *logrus.Logger
 }
+
 
 func (s *Service) Init() *Service {
 

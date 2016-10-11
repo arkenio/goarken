@@ -13,6 +13,11 @@
 // limitations under the License.
 package model
 
+import (
+	"net/url"
+	"strings"
+)
+
 const (
 	START_ACTION         = "start"
 	STOP_ACTION          = "stop"
@@ -23,18 +28,28 @@ const (
 	ROLLBACK_ACTION      = "rollback"
 )
 
+//represents the action as returned in the service
+type PrettyAction struct {
+	//the name of the action
+	Name string `json:"name"`
+	//is a POST/PUT /DELETE
+	Method string `json:"method"`
+	//the url to invoke to execute this action on the service
+	Url string `json:"url"`
+}
+
 //compute default actions based on the status of the service
 //avoids to return a list of actions when the service is in starting or stopping status
-//doesn't modify the list of actions on the service
-func GetDefaultActionsForStatus(s *Service) []string {
+//doesn't modify the list of actions on the service, and returns a simple string array as the actions are persisted
+func GetActions(s *Service) []string {
 	if s.Status != nil {
 		actions := make([]string, 0)
 		Current := s.Status.Current
 		Expected := s.Status.Expected
 		switch Current {
 		case STOPPED_STATUS:
-			if len(s.Actions) > 0 {
-				return s.Actions
+			if len(s.Actions.([]string)) > 0 {
+				return s.Actions.([]string)
 			}
 			if Expected == PASSIVATED_STATUS {
 				actions = append(actions, START_ACTION, DELETE_ACTION, UPDATE_ACTION)
@@ -45,8 +60,8 @@ func GetDefaultActionsForStatus(s *Service) []string {
 				return actions
 			}
 		case PASSIVATED_STATUS:
-			if len(s.Actions) > 0 {
-				return s.Actions
+			if len(s.Actions.([]string)) > 0 {
+				return s.Actions.([]string)
 			}
 			if Expected == PASSIVATED_STATUS {
 				actions = append(actions, START_ACTION, DELETE_ACTION)
@@ -56,8 +71,8 @@ func GetDefaultActionsForStatus(s *Service) []string {
 		case STARTING_STATUS:
 			return actions
 		case STARTED_STATUS:
-			if len(s.Actions) > 0 {
-				return s.Actions
+			if len(s.Actions.([]string)) > 0 {
+				return s.Actions.([]string)
 			}
 			actions = append(actions, DELETE_ACTION, UPDATE_ACTION, STOP_ACTION)
 		case STOPPING_STATUS:
@@ -67,7 +82,45 @@ func GetDefaultActionsForStatus(s *Service) []string {
 		}
 		return actions
 	}
-	return s.Actions
+	return s.Actions.([]string)
+}
+
+//returns an array of actions with more details ( method, url)
+func GetPrettyActions(s *Service, url *url.URL) []PrettyAction {
+	actions := GetActions(s)
+	prettyActions := make([]PrettyAction, 0)
+	for _, a := range actions {
+		prettyAction := PrettyAction{}
+		prettyAction.Name = a
+		prettyAction.Url = url.RequestURI()
+		switch a {
+		case START_ACTION:
+			prettyAction.Method = "POST"
+		case STOP_ACTION:
+			prettyAction.Method = "POST"
+		case DELETE_ACTION:
+			prettyAction.Method = "DELETE"
+		case UPDATE_ACTION:
+			prettyAction.Method = "PUT"
+		case UPGRADE_ACTION:
+			prettyAction.Method = "POST"
+		case FINISHUPGRADE_ACTION:
+			prettyAction.Method = "POST"
+		case ROLLBACK_ACTION:
+			prettyAction.Method = "POST"
+		}
+
+		i := strings.Index(prettyAction.Url, "?action=")
+		if i > 0 {
+			prettyAction.Url = prettyAction.Url[:i]
+		}
+
+		if prettyAction.Method == "POST" {
+			prettyAction.Url = prettyAction.Url + "?action=" + a
+		}
+		prettyActions = append(prettyActions, prettyAction)
+	}
+	return prettyActions
 }
 
 // called on create service, the service is stopped
@@ -76,44 +129,46 @@ func InitActions(s *Service) {
 	if s.Actions == nil {
 		s.Actions = make([]string, 0)
 	}
-	s.Actions = append(s.Actions, START_ACTION, DELETE_ACTION, UPDATE_ACTION)
+	s.Actions = append(s.Actions.([]string), START_ACTION, DELETE_ACTION, UPDATE_ACTION)
 }
 
 func AddAction(s *Service, actions ...string) {
 	if s.Actions == nil {
 		s.Actions = make([]string, 0)
+	} else {
+		s.Actions = s.Actions.([]string)
 	}
 	for _, action := range actions {
 		canAdd := true
 		switch action {
 		case START_ACTION:
-			for i, a := range s.Actions {
+			for i, a := range s.Actions.([]string) {
 				if a == action {
 					canAdd = false
 				}
 				if a == STOP_ACTION { //remove stop
-					s.Actions = append(s.Actions[:i], s.Actions[i+1:]...)
+					s.Actions = append(s.Actions.([]string)[:i], s.Actions.([]string)[i+1:]...)
 				}
 			}
 		case STOP_ACTION:
-			for i, a := range s.Actions {
+			for i, a := range s.Actions.([]string) {
 				if a == action {
 					canAdd = false
 				}
 				if a == START_ACTION {
-					s.Actions = append(s.Actions[:i], s.Actions[i+1:]...)
+					s.Actions = append(s.Actions.([]string)[:i], s.Actions.([]string)[i+1:]...)
 				}
 			}
 		case DELETE_ACTION:
-			for _, a := range s.Actions {
+			for _, a := range s.Actions.([]string) {
 				if a == action {
 					canAdd = false
 				}
 			}
 		case UPDATE_ACTION:
 			var actions = make([]string, 0)
-			for _, a := range s.Actions {
-				if a != UPGRADE_ACTION && a != FINISHUPGRADE_ACTION || a != ROLLBACK_ACTION {
+			for _, a := range s.Actions.([]string) {
+				if a != UPGRADE_ACTION && a != FINISHUPGRADE_ACTION && a != ROLLBACK_ACTION {
 					actions = append(actions, a)
 				}
 				if a == action {
@@ -122,36 +177,35 @@ func AddAction(s *Service, actions ...string) {
 			}
 			s.Actions = actions
 		case UPGRADE_ACTION:
-			for i, a := range s.Actions {
+			for i, a := range s.Actions.([]string) {
 				if a == UPDATE_ACTION {
-					s.Actions = append(s.Actions[:i], s.Actions[i+1:]...)
+					s.Actions = append(s.Actions.([]string)[:i], s.Actions.([]string)[i+1:]...)
 				}
 				if a == action || a == FINISHUPGRADE_ACTION || a == ROLLBACK_ACTION {
 					canAdd = false
 				}
-
 			}
 		case FINISHUPGRADE_ACTION:
-			for i, a := range s.Actions {
+			for i, a := range s.Actions.([]string) {
 				if a == action {
 					canAdd = false
 				}
 				if a == UPGRADE_ACTION {
-					s.Actions = append(s.Actions[:i], s.Actions[i+1:]...)
+					s.Actions = append(s.Actions.([]string)[:i], s.Actions.([]string)[i+1:]...)
 				}
 			}
 		case ROLLBACK_ACTION:
-			for i, a := range s.Actions {
+			for i, a := range s.Actions.([]string) {
 				if a == action {
 					canAdd = false
 				}
 				if a == UPGRADE_ACTION {
-					s.Actions = append(s.Actions[:i], s.Actions[i+1:]...)
+					s.Actions = append(s.Actions.([]string)[:i], s.Actions.([]string)[i+1:]...)
 				}
 			}
 		}
 		if canAdd {
-			s.Actions = append(s.Actions, action)
+			s.Actions = append(s.Actions.([]string), action)
 		}
 	}
 }
