@@ -335,6 +335,7 @@ func (w *Watcher) PersistService(s *Service) (*Service, error) {
 			} else {
 				err = err2
 			}
+            log.Debugf("Persisting actions %v on service %s", s.Actions, s.Name)
 			if len(s.Actions.([]string)) > 0 { //don't perists actions on intermediate states
 				bytes, err2 = json.Marshal(s.Actions.([]string))
 				if err2 == nil {

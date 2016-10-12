@@ -564,11 +564,17 @@ func (m *Model) onRancherInfo(info *RancherInfoType) {
 				service.Status.Alive = ""
 			}
 
-			// Compare to initial status
-			if computedSatus != service.Status.Compute() {
-				log.Infof("Service %s changed its status to : %s", service.Name, service.Status.Compute())
+			// Compare to initial status and update actions as the service is restarted in case of upgrade and rollback
+			newStatus := service.Status.Compute()
+			if computedSatus != newStatus {
+				log.Infof("Service %s changed its status to : %s", service.Name, newStatus)
+				if STOPPED_STATUS == newStatus {
+					AddAction(service, START_ACTION)
+				}
+				if STARTED_STATUS == newStatus {
+					AddAction(service, STOP_ACTION)
+				}
 			}
-
 			s, err := m.persistenceDriver.PersistService(service)
 
 			if err != nil {
