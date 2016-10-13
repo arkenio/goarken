@@ -575,6 +575,7 @@ func (m *Model) onRancherInfo(info *RancherInfoType) {
 					AddAction(service, STOP_ACTION)
 				}
 			}
+
 			s, err := m.persistenceDriver.PersistService(service)
 
 			if err != nil {

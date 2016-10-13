@@ -103,7 +103,7 @@ func (s *Service) Init() *Service {
 	s.Index = "1"
 
 	status := NewInitialStatus(STOPPED_STATUS, s)
-	InitActions(s)
+	s.Actions = InitActions(s)
 
 	s.Status = status
 	s.Config = &ServiceConfig{

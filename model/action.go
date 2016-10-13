@@ -48,7 +48,7 @@ func GetActions(s *Service) []string {
 		Expected := s.Status.Expected
 		switch Current {
 		case STOPPED_STATUS:
-			if len(s.Actions.([]string)) > 0 {
+			if s.Actions != nil && len(s.Actions.([]string)) > 0 {
 				return s.Actions.([]string)
 			}
 			if Expected == PASSIVATED_STATUS {
@@ -60,7 +60,7 @@ func GetActions(s *Service) []string {
 				return actions
 			}
 		case PASSIVATED_STATUS:
-			if len(s.Actions.([]string)) > 0 {
+			if s.Actions != nil && len(s.Actions.([]string)) > 0 {
 				return s.Actions.([]string)
 			}
 			if Expected == PASSIVATED_STATUS {
@@ -71,7 +71,7 @@ func GetActions(s *Service) []string {
 		case STARTING_STATUS:
 			return actions
 		case STARTED_STATUS:
-			if len(s.Actions.([]string)) > 0 {
+			if s.Actions != nil && len(s.Actions.([]string)) > 0 {
 				return s.Actions.([]string)
 			}
 			actions = append(actions, DELETE_ACTION, UPDATE_ACTION, STOP_ACTION)
@@ -124,12 +124,13 @@ func GetPrettyActions(s *Service, url *url.URL) []PrettyAction {
 }
 
 // called on create service, the service is stopped
-func InitActions(s *Service) {
+func InitActions(s *Service) []string {
 
 	if s.Actions == nil {
 		s.Actions = make([]string, 0)
 	}
 	s.Actions = append(s.Actions.([]string), START_ACTION, DELETE_ACTION, UPDATE_ACTION)
+	return s.Actions.([]string)
 }
 
 func AddAction(s *Service, actions ...string) {
