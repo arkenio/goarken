@@ -219,12 +219,11 @@ func (r *RancherServiceDriver) NeedToBeUpgraded(s *Service) (bool, error) {
 	rancherId := s.Config.RancherInfo.EnvironmentId
 	actualEnv, err := r.rancherClient.Environment.ById(rancherId)
 	if err != nil {
+		
 		log.Error("Error when fetching the environment %v", err)
 		return false, err
 	}
-	log.Infof("New env %v ", newEnv.Environment)
-	log.Infof("actual env %v ", actualEnv.Environment)
-	log.Infof("whats this deep equlal %v", reflect.DeepEqual(newEnv.Environment, actualEnv.Environment))
+
 	return !(reflect.DeepEqual(newEnv.Environment, actualEnv.Environment) &&
 		newEnv.DockerCompose == actualEnv.DockerCompose &&
 		newEnv.RancherCompose == actualEnv.RancherCompose), nil
@@ -262,6 +261,7 @@ func (r *RancherServiceDriver) Upgrade(s *Service) (interface{}, error) {
 		DockerCompose:  extractFileContent(template, "docker-compose.yml"),
 		RancherCompose: extractFileContent(template, "rancher-compose.yml"),
 		Environment:    s.Config.Environment,
+		ExternalId :    "catalog://" + info.TemplateId,
 	}
 
 	env, err = r.rancherClient.Environment.ActionUpgrade(env, envUpgrade)
