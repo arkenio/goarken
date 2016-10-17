@@ -91,16 +91,19 @@ type Service struct {
 	Domain     string         `json:"domain"`
 	Name       string         `json:"name"`
 	Status     *Status        `json:"status"`
+	Actions    interface{}  `json:"actions"` 
 	LastAccess *time.Time     `json:"lastAccess"`
 	Config     *ServiceConfig `json:"config"`
 	log        *logrus.Logger
 }
+
 
 func (s *Service) Init() *Service {
 
 	s.Index = "1"
 
 	status := NewInitialStatus(STOPPED_STATUS, s)
+	s.Actions = InitActions(s)
 
 	s.Status = status
 	s.Config = &ServiceConfig{

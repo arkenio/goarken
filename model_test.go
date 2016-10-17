@@ -22,6 +22,7 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 	"testing"
 	"time"
+	"reflect"
 )
 
 type MockServiceDriver struct {
@@ -54,13 +55,24 @@ func (sd *MockServiceDriver) Upgrade(s *Service) (interface{}, error) {
 	return &RancherInfoType{EnvironmentId: "rancherId"}, nil
 }
 
+func (sd *MockServiceDriver) FinishUpgrade(s *Service) (interface{}, error) {
+	sd.calls["finishupgrade"] = sd.calls["finishupgrade"] + 1
+	sd.events.Write(NewModelEvent("update", s))
+	return &RancherInfoType{EnvironmentId: "rancherId"}, nil
+}
+
+func (sd *MockServiceDriver) Rollback(s *Service) (interface{}, error) {
+	sd.calls["rollback"] = sd.calls["rollback"] + 1
+	return &RancherInfoType{EnvironmentId: "rancherId"}, nil
+}
+
 
 func (sd *MockServiceDriver) Stop(s *Service) (interface{}, error) {
 	sd.calls["stop"] = sd.calls["stop"] + 1
 	sd.events.Write(NewModelEvent("update", s))
 	return &RancherInfoType{EnvironmentId: "rancherId"}, nil
-
 }
+
 func (sd *MockServiceDriver) Destroy(s *Service) error {
 	sd.calls["destroy"] = sd.calls["destroy"] + 1
 	sd.events.Write(NewModelEvent("update", s))
@@ -198,8 +210,7 @@ func Test_EtcdWatcher(t *testing.T) {
 			service.Domain = "test.domain.com"
 
 			model.CreateService(service, false)
-
-			Convey("Then a domain should be created", func() {
+				Convey("Then a domain should be created", func() {
 				time.Sleep(2 * time.Second)
 				So(len(model.Domains), ShouldEqual, 1)
 				So(model.Domains["test.domain.com"], ShouldNotBeNil)
@@ -211,6 +222,12 @@ func Test_EtcdWatcher(t *testing.T) {
 			service.Init()
 			service.Name = "testService"
 			model.CreateService(service, true)
+		
+		    Convey("The actions on the service should be stop, delete, update", func() {
+					actions := make([]string, 0)
+					actions = append(actions, START_ACTION, DELETE_ACTION, UPDATE_ACTION) 
+					So(reflect.DeepEqual(service.Actions, actions), ShouldEqual, true)
+				})
 
 			Convey("When i passivate the service", func() {
 				initial := sd.calls["stop"]

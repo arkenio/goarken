@@ -292,6 +292,14 @@ func newService(serviceNode *etcd.Node) (*Service, error) {
 
 		case service.NodeKey + "/status":
 			service.Status = NewStatus(service, node)
+		case service.NodeKey + "/actions":
+			var actions []string
+			err := json.Unmarshal([]byte(node.Value), &actions)
+			if err != nil {
+				log.Errorf("Error parsing actions on the service %s: %v", service.Name, err)
+				break
+			}
+			service.Actions = actions
 		}
 	}
 	return service, nil
@@ -327,6 +335,15 @@ func (w *Watcher) PersistService(s *Service) (*Service, error) {
 			} else {
 				err = err2
 			}
+            log.Debugf("Persisting actions %v on service %s", s.Actions, s.Name)
+			if len(s.Actions.([]string)) > 0 { //don't perists actions on intermediate states
+				bytes, err2 = json.Marshal(s.Actions.([]string))
+				if err2 == nil {
+					_, err = w.kapi.Set(context.Background(), fmt.Sprintf("%s/actions", s.NodeKey), string(bytes), nil)
+				} else {
+					err = err2
+				}
+			}
 
 			bytes, err2 = json.Marshal(s.Config)
 			if err2 == nil {
@@ -356,6 +373,12 @@ func (w *Watcher) PersistService(s *Service) (*Service, error) {
 			bytes, err := json.Marshal(s.Config)
 			if err == nil {
 				_, err = w.kapi.Create(context.Background(), fmt.Sprintf("%s/config", s.NodeKey), string(bytes))
+			}
+		}
+		if err == nil {
+			bytes, err := json.Marshal(s.Actions.([]string))
+			if err == nil {
+				_, err = w.kapi.Create(context.Background(), fmt.Sprintf("%s/actions", s.NodeKey), string(bytes))
 			}
 		}
 		if err == nil {
@@ -505,7 +528,6 @@ func (w *Watcher) PersistDomain(d *Domain) (*Domain, error) {
 
 	if d.NodeKey != "" {
 		resp, err := w.kapi.Get(context.Background(), d.NodeKey, &etcd.GetOptions{Recursive: true, Sort: false})
-
 
 		if err != nil {
 			return nil, err

@@ -31,10 +31,10 @@ type Model struct {
 	serviceDriver     ServiceDriver
 	persistenceDriver PersistenceDriver
 
-	Domains           map[string]*Domain
-	Services          map[string]*ServiceCluster
-	eventBroadcast    *Broadcaster
-	eventBuffer       *eventBuffer
+	Domains        map[string]*Domain
+	Services       map[string]*ServiceCluster
+	eventBroadcast *Broadcaster
+	eventBuffer    *eventBuffer
 }
 
 // Create an ArkenModel base on a serviceDriver and a PersistenceDriver. The
@@ -262,6 +262,7 @@ func (m *Model) StartService(service *Service) (*Service, error) {
 
 	service.Status.Expected = STARTED_STATUS
 	service.Status.Current = STARTING_STATUS
+	AddAction(service, STOP_ACTION, UPDATE_ACTION, DELETE_ACTION)
 	service, err := m.saveService(service)
 
 	if err != nil {
@@ -270,12 +271,13 @@ func (m *Model) StartService(service *Service) (*Service, error) {
 		m.eventBuffer.events <- NewModelEvent("update", service)
 		return service, nil
 	}
-
 }
 
 // Stops a service (only works if ServiceDriver is set)
 func (m *Model) StopService(service *Service) (*Service, error) {
 	service.Status.Expected = STOPPED_STATUS
+	AddAction(service, START_ACTION, DELETE_ACTION)
+
 	if m.serviceDriver != nil {
 		info, err := m.serviceDriver.Stop(service)
 		if err != nil {
@@ -298,7 +300,7 @@ func (m *Model) StopService(service *Service) (*Service, error) {
 // Passivates a service (only works if ServiceDriver is set)
 func (m *Model) PassivateService(service *Service) (*Service, error) {
 	service.Status.Expected = PASSIVATED_STATUS
-
+	AddAction(service, DELETE_ACTION)
 	info, err := m.serviceDriver.Stop(service)
 	if err != nil {
 		return nil, err
@@ -316,9 +318,7 @@ func (m *Model) PassivateService(service *Service) (*Service, error) {
 	}
 }
 
-
 func (m *Model) UpdateService(service *Service) (*Service, error) {
-
 
 	if serviceCluster, ok := m.Services[service.Name]; !ok {
 		return nil, errors.New("Service not found")
@@ -335,7 +335,6 @@ func (m *Model) UpdateService(service *Service) (*Service, error) {
 					origService.Config.Passivation = service.Config.Passivation
 				}
 			}
-
 
 			//Updates the domain of the service
 			if service.Domain != "" && service.Domain != origService.Domain {
@@ -357,13 +356,22 @@ func (m *Model) UpdateService(service *Service) (*Service, error) {
 					}
 				}
 
-
 				origService.Domain = service.Domain
 
 			}
+			//update the actions available on the service if the service needs to be upgraded
+			var updated, err = m.NeedToBeUpgraded(origService)
+			if err != nil {
+				log.Errorf("Unable to read service %s : %v ", service.Name, err)
+			}
+			if updated {
+				AddAction(origService, UPGRADE_ACTION)
+			}
 
 			m.saveService(origService)
+
 		}
+
 		return m.Services[service.Name].GetInstances()[0], nil
 	}
 }
@@ -377,9 +385,7 @@ func (m *Model) NeedToBeUpgraded(service *Service) (bool, error) {
 	}
 }
 
-
 func (m *Model) UpgradeService(service *Service) (*Service, error) {
-
 
 	if serviceCluster, ok := m.Services[service.Name]; !ok {
 		return nil, errors.New("Service not found")
@@ -389,12 +395,63 @@ func (m *Model) UpgradeService(service *Service) (*Service, error) {
 			if err != nil {
 				return nil, err
 			} else {
+				s.Status.Expected = STARTED_STATUS
+				s.Status.Current = STARTING_STATUS
+				AddAction(s, FINISHUPGRADE_ACTION, ROLLBACK_ACTION)
+				s, err = m.saveService(s)
+				if err != nil {
+					return nil, err
+				}
 				return s, nil
 			}
 		}
 		return nil, errors.New("No service in cluster ! Doh !")
 	}
 
+}
+
+func (m *Model) FinishUpgradeService(service *Service) (*Service, error) {
+
+	if m.serviceDriver != nil {
+		info, err := m.serviceDriver.FinishUpgrade(service)
+		if err != nil {
+			return nil, err
+		}
+		m.updateInfoFromDriver(service, info)
+	}
+
+	service.Status.Expected = STARTED_STATUS
+	service.Status.Current = STARTING_STATUS
+	AddAction(service, UPDATE_ACTION)
+	service, err := m.saveService(service)
+
+	if err != nil {
+		return nil, err
+	} else {
+		m.eventBuffer.events <- NewModelEvent("update", service)
+		return service, nil
+	}
+}
+
+func (m *Model) RollbackService(service *Service) (*Service, error) {
+
+	if m.serviceDriver != nil {
+		info, err := m.serviceDriver.Rollback(service)
+		if err != nil {
+			return nil, err
+		}
+		m.updateInfoFromDriver(service, info)
+	}
+
+	service.Status.Expected = STARTED_STATUS
+	service.Status.Current = STARTING_STATUS
+	AddAction(service, UPDATE_ACTION)
+	service, err := m.saveService(service)
+
+	if err != nil {
+		return nil, err
+	}
+	return service, nil
 
 }
 
@@ -507,9 +564,16 @@ func (m *Model) onRancherInfo(info *RancherInfoType) {
 				service.Status.Alive = ""
 			}
 
-			// Compare to initial status
-			if computedSatus != service.Status.Compute() {
-				log.Infof("Service %s changed its status to : %s", service.Name, service.Status.Compute())
+			// Compare to initial status and update actions as the service is restarted in case of upgrade and rollback
+			newStatus := service.Status.Compute()
+			if computedSatus != newStatus {
+				log.Infof("Service %s changed its status to : %s", service.Name, newStatus)
+				if STOPPED_STATUS == newStatus {
+					AddAction(service, START_ACTION)
+				}
+				if STARTED_STATUS == newStatus {
+					AddAction(service, STOP_ACTION)
+				}
 			}
 
 			s, err := m.persistenceDriver.PersistService(service)
