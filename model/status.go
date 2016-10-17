@@ -1,6 +1,17 @@
-package goarken
-
-import "github.com/coreos/go-etcd/etcd"
+// Copyright © 2016 Nuxeo SA (http://nuxeo.com/) and others.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+package model
 
 const (
 	STARTING_STATUS   = "starting"
@@ -13,30 +24,30 @@ const (
 	PASSIVATED_STATUS = "passivated"
 )
 
+// Represents the combined status of a service
 type Status struct {
-	Alive    string `json:"alive"`
-	Current  string `json:"current"`
+	// Is the service alive
+	Alive string `json:"alive"`
+
+	// Current status of the service
+	Current string `json:"current"`
+
+	// Expected status of the service
 	Expected string `json:"expected"`
-	Service  *Service `json:"-"`
+
+	Service *Service `json:"-"`
 }
 
-func NewStatus(service *Service, node *etcd.Node) *Status {
-	status := &Status{}
-	statusKey := service.NodeKey + "/status"
-	status.Service = service
-	for _, subNode := range node.Nodes {
-		switch subNode.Key {
-		case statusKey + "/alive":
-			status.Alive = subNode.Value
-		case statusKey + "/current":
-			status.Current = subNode.Value
-		case statusKey + "/expected":
-			status.Expected = subNode.Value
-		}
+// Creates a Status for a service with an initial value
+func NewInitialStatus(initialStatus string, service *Service) *Status {
+	return &Status{
+		Current:  initialStatus,
+		Expected: initialStatus,
+		Service:  service,
 	}
-	return status
 }
 
+// Represents an error for a given status.
 type StatusError struct {
 	ComputedStatus string
 	Status         *Status
@@ -55,6 +66,8 @@ func (s *Status) Equals(other *Status) bool {
 		s.Expected == other.Expected
 }
 
+// Computes the real status of the service made by the combination
+// of current and expected state.
 func (s *Status) Compute() string {
 
 	if s != nil {

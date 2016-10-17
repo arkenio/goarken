@@ -4,7 +4,7 @@
 go-arken
 ========
 
-[![Build Status](https://travis-ci.org/arkenio/go-arken.png?branch=master)](https://travis-ci.org/arkenio/go-arken)
+[![Build Status](https://travis-ci.org/arkenio/goarken.png?branch=master)](https://travis-ci.org/arkenio/goarken)
 
 Common Go libs to handle Arken model (domains, service)
 
@@ -13,7 +13,7 @@ Report & Contribute
 
 We are glad to welcome new developers on this initiative, and even simple usage feedback is great.
 - Ask your questions on [Nuxeo Answers](http://answers.nuxeo.com)
-- Report issues on this github repository (see [issues link](http://github.com/nuxeo/gogeta/issues) on the right)
+- Report issues on this github repository (see [issues link](http://github.com/arkenio/goarken/issues) on the right)
 - Contribute: Send pull requests!
 
 
