@@ -225,8 +225,8 @@ func Test_EtcdWatcher(t *testing.T) {
 		
 		    Convey("The actions on the service should be stop, delete, update", func() {
 					actions := make([]string, 0)
-					actions = actions.append(DELETE_ACTION, UPDATE_ACTION, STOP_ACTION) 
-					So(reflect.DeepEqual(service.Actions, actions) ShouldEqual, true)
+					actions = append(actions, START_ACTION, DELETE_ACTION, UPDATE_ACTION) 
+					So(reflect.DeepEqual(service.Actions, actions), ShouldEqual, true)
 				})
 
 			Convey("When i passivate the service", func() {
